@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '@/theme/colors';
 
@@ -22,6 +23,9 @@ function TabIcon({
 
 /** Navegación principal por pestañas. */
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 8);
+
   return (
     <Tabs
       screenOptions={{
@@ -31,8 +35,10 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: colors.black,
           borderTopColor: colors.border,
-          height: 75,
-          paddingBottom: 8,
+          // La altura crece cuando Android muestra la navegación de tres
+          // botones, evitando que esta se superponga a las pestañas.
+          height: 67 + bottomInset,
+          paddingBottom: bottomInset,
           paddingTop: 8,
         },
         tabBarLabelStyle: {

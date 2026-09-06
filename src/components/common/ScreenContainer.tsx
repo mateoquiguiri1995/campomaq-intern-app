@@ -30,7 +30,10 @@ export function ScreenContainer({
   hasHeader = false,
   showOfflineBanner = true,
 }: ScreenContainerProps) {
-  const edges = hasHeader ? [] : (['top'] as const);
+  // Android puede dibujar la app por debajo de la barra de navegación. Todas
+  // las pantallas deben respetar el borde inferior; cuando hay un header
+  // nativo, solamente omitimos el borde superior para no duplicar su espacio.
+  const edges = hasHeader ? (['bottom'] as const) : (['top', 'bottom'] as const);
 
   if (!scroll) {
     return (

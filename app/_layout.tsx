@@ -9,6 +9,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { LoadingScreen } from '@/components/common/LoadingScreen';
 import { SalesLoadingScreen } from '@/components/common/SalesLoadingScreen';
@@ -48,13 +49,15 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <AppBootstrapProvider>
-        <SellerProvider>
-          <SessionQuoteBuilder />
-        </SellerProvider>
-      </AppBootstrapProvider>
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <AppBootstrapProvider>
+          <SellerProvider>
+            <SessionQuoteBuilder />
+          </SellerProvider>
+        </AppBootstrapProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
 
