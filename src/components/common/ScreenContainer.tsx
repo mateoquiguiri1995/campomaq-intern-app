@@ -1,4 +1,5 @@
 import type { PropsWithChildren } from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -22,6 +23,15 @@ interface ScreenContainerProps extends PropsWithChildren {
    * Si es true (por defecto), muestra el banner sutil de modo offline si la app está sin conexión.
    */
   showOfflineBanner?: boolean;
+  /**
+   * Sobrescribe los bordes seguros (edges). Útil en pantallas dentro de Tabs donde el
+   * TabBar ya cubre el borde inferior del sistema.
+   */
+  edges?: readonly ('top' | 'bottom' | 'left' | 'right')[];
+  /**
+   * Estilo adicional para el contenedor de contenido (nonScrollContent o ScrollView).
+   */
+  style?: StyleProp<ViewStyle>;
 }
 
 export function ScreenContainer({
@@ -29,17 +39,20 @@ export function ScreenContainer({
   scroll = true,
   hasHeader = false,
   showOfflineBanner = true,
+  edges: customEdges,
+  style,
 }: ScreenContainerProps) {
   // Android puede dibujar la app por debajo de la barra de navegación. Todas
   // las pantallas deben respetar el borde inferior; cuando hay un header
   // nativo, solamente omitimos el borde superior para no duplicar su espacio.
-  const edges = hasHeader ? (['bottom'] as const) : (['top', 'bottom'] as const);
+  const defaultEdges = hasHeader ? (['bottom'] as const) : (['top', 'bottom'] as const);
+  const edges = customEdges ?? defaultEdges;
 
   if (!scroll) {
     return (
       <SafeAreaView style={styles.safeArea} edges={edges}>
         {showOfflineBanner && <OfflineBanner />}
-        <View style={styles.nonScrollContent}>{children}</View>
+        <View style={[styles.nonScrollContent, style]}>{children}</View>
       </SafeAreaView>
     );
   }
@@ -48,7 +61,7 @@ export function ScreenContainer({
     <SafeAreaView style={styles.safeArea} edges={edges}>
       {showOfflineBanner && <OfflineBanner />}
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, style]}
         keyboardShouldPersistTaps="handled"
       >
         {children}

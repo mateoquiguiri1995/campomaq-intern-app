@@ -4,6 +4,9 @@ import { radius, spacing } from '@/theme/spacing';
 
 /** Estilos centralizados para $file. Uso: se importan desde esta pantalla/componente; editar aquí preserva el diseño. */
 export const styles = StyleSheet.create({
+  screenContent: {
+    paddingBottom: 0,
+  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

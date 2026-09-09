@@ -51,7 +51,7 @@ export function BrandSelect({
         <Ionicons
           name="funnel"
           size={18}
-          color={isFiltered ? colors.black : '#FFFFFF'}
+          color={isFiltered ? colors.black : colors.surface}
         />
       </TouchableOpacity>
 

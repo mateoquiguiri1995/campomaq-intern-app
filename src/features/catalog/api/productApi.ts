@@ -22,6 +22,7 @@ export interface ApiProduct {
 
   margin?: number;
   discount?: number;
+  iva?: boolean;
 }
 
 /** Existencia de un producto devuelta por el endpoint /stock. */

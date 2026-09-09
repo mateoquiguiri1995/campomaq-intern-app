@@ -14,13 +14,19 @@ import * as quoteService from './services/quoteService';
 import type { PriceTier, Quote, QuoteClient, QuoteItem, QuoteStatus } from './types';
 
 function generateId(): string {
-  return `q-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  // `expo-crypto` (randomUUID) no es dependencia de este proyecto todavía,
+  // así que en vez de agregarla solo para esto, se refuerza la entropía del
+  // generador actual (dos segmentos aleatorios en vez de uno) para volver
+  // la colisión aún más improbable sin tocar package.json.
+  const randomPart = `${Math.random().toString(36).slice(2, 10)}${Math.random().toString(36).slice(2, 8)}`;
+  return `q-${Date.now()}-${randomPart}`;
 }
 
 interface AddItemOptions {
   quantity: number;
   priceTier: PriceTier;
   discountPct?: number;
+  discountAmount?: number;
 }
 
 interface QuoteBuilderContextValue {
@@ -30,6 +36,7 @@ interface QuoteBuilderContextValue {
   status: QuoteStatus;
   observations: string;
   termsAndConditions: string;
+  createdAt: string;
   setClient: (client: QuoteClient) => void;
   setTermsAndObservations: (terms: string, obs: string) => void;
   /** Agrega el producto o, si ya estaba en la cotización, reemplaza esa línea. */
@@ -72,12 +79,14 @@ export function QuoteBuilderProvider({ children, userId }: QuoteBuilderProviderP
     setTermsAndConditions('');
   }, []);
 
-  const prevUserIdRef = useRef(userId);
+  const prevUserIdRef = useRef<string | null>(userId);
 
   useEffect(() => {
-    if (prevUserIdRef.current !== userId) {
+    if (userId) {
+      if (prevUserIdRef.current && prevUserIdRef.current !== userId) {
+        resetBuilder();
+      }
       prevUserIdRef.current = userId;
-      resetBuilder();
     }
   }, [userId, resetBuilder]);
 
@@ -94,7 +103,13 @@ export function QuoteBuilderProvider({ children, userId }: QuoteBuilderProviderP
     if (status !== 'Pendiente') return;
     setItems((current) => [
       ...current.filter((item) => item.product.id !== product.id),
-      { product, quantity: options.quantity, priceTier: options.priceTier, discountPct: options.discountPct },
+      {
+        product,
+        quantity: options.quantity,
+        priceTier: options.priceTier,
+        discountPct: options.discountPct,
+        discountAmount: options.discountAmount,
+      },
     ]);
   }, [status]);
 
@@ -193,6 +208,7 @@ export function QuoteBuilderProvider({ children, userId }: QuoteBuilderProviderP
       status,
       observations,
       termsAndConditions,
+      createdAt,
       setClient,
       setTermsAndObservations,
       addItem,
@@ -211,6 +227,7 @@ export function QuoteBuilderProvider({ children, userId }: QuoteBuilderProviderP
       status,
       observations,
       termsAndConditions,
+      createdAt,
       setClient,
       setTermsAndObservations,
       addItem,

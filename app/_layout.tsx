@@ -69,7 +69,7 @@ function SessionQuoteBuilder() {
   return (
     <QuoteBuilderProvider userId={userId}>
       <StatusBar style="dark" />
-      <RootNavigator key={userId ?? 'anonymous'} />
+      <RootNavigator />
     </QuoteBuilderProvider>
   );
 }
@@ -79,14 +79,26 @@ function RootNavigator() {
   const { isLoading: isBootstrapping, progress: bootstrapProgress } = useAppBootstrap();
   const [showSplash, setShowSplash] = useState(true);
   const [showSalesSplash, setShowSalesSplash] = useState(false);
+  const [isInitialBootDone, setIsInitialBootDone] = useState(false);
   const prevHasSession = useRef(hasSession);
 
   useEffect(() => {
     if (hasSession && !prevHasSession.current) {
       setShowSalesSplash(true);
+      setIsInitialBootDone(false);
+    } else if (!hasSession && prevHasSession.current) {
+      setShowSalesSplash(false);
+      setIsInitialBootDone(false);
     }
     prevHasSession.current = hasSession;
   }, [hasSession]);
+
+  useEffect(() => {
+    if (hasSession && !isLoading && !isBootstrapping) {
+      setIsInitialBootDone(true);
+      setShowSalesSplash(false);
+    }
+  }, [hasSession, isLoading, isBootstrapping]);
 
   if (showSplash) {
     return (
@@ -110,9 +122,9 @@ function RootNavigator() {
   }
 
   // hasSession ya es true (login recién hecho o sesión persistida): a partir
-  // de acá /auth/me y la precarga de productos/clientes corren en paralelo,
-  // así que se muestra una sola pantalla de carga hasta que ambos terminen.
-  if (hasSession && profileError) {
+  // de acá /auth/me y la precarga de productos/clientes corren en paralelo.
+  // Solo mostramos error de perfil a pantalla completa si aún no se ha completado el arranque inicial.
+  if (hasSession && !isInitialBootDone && profileError) {
     return (
       <LoadingScreen
         title="No pudimos cargar tu perfil"
@@ -124,16 +136,21 @@ function RootNavigator() {
     );
   }
 
-  if (hasSession && (showSalesSplash || isLoading || isBootstrapping)) {
+  // SalesLoadingScreen solo se muestra en el arranque inicial o login reciente.
+  // Una vez montado el Stack, reconexiones o refrescos en segundo plano jamás desmontan la pantalla.
+  if (hasSession && !isInitialBootDone && (showSalesSplash || isLoading || isBootstrapping)) {
     // Cálculo de progreso combinado:
     // - Si el perfil de usuario (/auth/me) aún carga, aporta 0%, si ya cargó aporta 30%
     // - El bootstrap de datos (productos y clientes) aporta el otro 70% proporcionalmente
-    const combinedProgress = Math.round((isLoading ? 0 : 30) + (bootstrapProgress * 0.7));
+    const combinedProgress = Math.min(100, Math.round((isLoading ? 0 : 30) + (bootstrapProgress * 0.7)));
 
     return (
       <SalesLoadingScreen
         progress={combinedProgress}
-        onComplete={() => setShowSalesSplash(false)}
+        onComplete={() => {
+          setShowSalesSplash(false);
+          setIsInitialBootDone(true);
+        }}
       />
     );
   }

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { styles } from '@/theme/styles/src_features_clients_components_ClientCard';
 import { colors } from '@/theme/colors';
@@ -29,7 +30,7 @@ function formatLastPurchaseDate(dateStr?: string): string {
   return `Últ. compra ${day} ${month} ${year}`;
 }
 
-export function ClientCard({ client }: ClientCardProps) {
+function ClientCardComponent({ client }: ClientCardProps) {
   const lastPurchase = formatLastPurchaseDate(client.lastPurchaseDate);
   const subtitle = [client.location, lastPurchase].filter(Boolean).join(' - ');
 
@@ -56,4 +57,8 @@ export function ClientCard({ client }: ClientCardProps) {
     </View>
   );
 }
+
+// Evita re-renderizar cada tarjeta visible cuando el padre (ClientsScreen)
+// cambia de estado por algo ajeno a la lista (buscador, filtros, etc.).
+export const ClientCard = memo(ClientCardComponent);
 

@@ -7,7 +7,7 @@ import type { Client } from '../types';
 const PAGE_SIZE = 10;
 const SEARCH_DEBOUNCE_MS = 400;
 
-export function useClients() {
+export function useClients(statusFilter?: (client: Client) => boolean) {
   const {
     clients: bootClients,
     clientsTotal: bootClientsTotal,
@@ -15,6 +15,7 @@ export function useClients() {
     isLoadingAllClients,
     clientsError: bootClientsError,
     isLoading: bootLoading,
+    isSyncing,
     reload,
   } = useAppBootstrap();
 
@@ -33,12 +34,14 @@ export function useClients() {
   const trimmedSearch = search.trim();
   const isSearching = trimmedSearch.length > 0;
 
+  // Cada vez que el bootstrap trae datos nuevos (arranque o reload()) se
+  // reinicia la paginación real a la página 1, igual que en useCatalog.ts:
+  // así el pull-to-refresh también funciona acá después de haber scrolleado.
   useEffect(() => {
-    if (browsePage === 1) {
-      setBrowseClients(bootClients);
-      setBrowseHasMore(bootClients.length < bootClientsTotal);
-    }
-  }, [bootClients, bootClientsTotal, browsePage]);
+    setBrowseClients(bootClients);
+    setBrowseHasMore(bootClients.length < bootClientsTotal);
+    setBrowsePage(1);
+  }, [bootClients, bootClientsTotal]);
 
   /**
    * Búsqueda por texto con comportamiento híbrido: filtra inmediatamente
@@ -77,7 +80,7 @@ export function useClients() {
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [search]);
+  }, [search, statusFilter]);
 
   // 1. Filtrado local inmediato usando allClients (caché completa) con fallback a browseClients
   const cacheResults = useMemo(() => {
@@ -106,18 +109,47 @@ export function useClients() {
     return [...searchResults, ...uniqueCacheResults];
   }, [searchResults, cacheResults, isSearching]);
 
-  const sourceClients = useMemo(() => {
+  /**
+   * true cuando el listado sin búsqueda ya puede navegarse sobre la cartera
+   * completa en memoria (allClients) en vez de sobre la paginación real de
+   * red (browseClients). Antes de que allClients termine de cargar, se
+   * sigue usando la paginación real como arranque rápido. Mismo patrón que
+   * `usingLocalBrowseSource` en useCatalog.ts.
+   */
+  const usingLocalBrowseSource = !isSearching && allClients !== null;
+
+  // Universo sin el filtro de estado (recencia/frecuencia): se usa para
+  // saber si realmente no hay clientes cargados, sin confundirlo con
+  // "ninguno matchea el filtro de estado actual".
+  const rawSourceClients = useMemo(() => {
     if (isSearching) return combinedSearchResults;
-    if (allClients && allClients.length > 0) return allClients;
+    if (usingLocalBrowseSource) return allClients ?? [];
     return browseClients;
-  }, [isSearching, combinedSearchResults, allClients, browseClients]);
+  }, [isSearching, combinedSearchResults, usingLocalBrowseSource, allClients, browseClients]);
+
+  const sourceClients = useMemo(() => {
+    return statusFilter ? rawSourceClients.filter(statusFilter) : rawSourceClients;
+  }, [rawSourceClients, statusFilter]);
+
+  /**
+   * Cuando allClients termina de cargar en segundo plano y se pasa del modo
+   * de paginación real (browseClients) al modo local (slice progresivo),
+   * aseguramos que visibleCount nunca sea menor a lo que el usuario ya había
+   * revelado por scroll: de lo contrario la lista "encogería" de golpe.
+   */
+  useEffect(() => {
+    if (!isSearching && allClients) {
+      setVisibleCount((current) => Math.max(current, browseClients.length, PAGE_SIZE));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allClients, isSearching]);
 
   const visibleClients = useMemo(() => {
-    if (isSearching || (allClients && allClients.length > 0)) {
+    if (isSearching || usingLocalBrowseSource) {
       return sourceClients.slice(0, visibleCount);
     }
     return sourceClients;
-  }, [sourceClients, isSearching, allClients, visibleCount]);
+  }, [sourceClients, isSearching, usingLocalBrowseSource, visibleCount]);
 
   async function loadMoreBrowsePage() {
     if (loadingMore || !browseHasMore) return;
@@ -142,7 +174,7 @@ export function useClients() {
   }
 
   function loadMore() {
-    if (isSearching || (allClients && allClients.length > 0)) {
+    if (isSearching || usingLocalBrowseSource) {
       setVisibleCount((current) => current + PAGE_SIZE);
     } else {
       loadMoreBrowsePage();
@@ -150,14 +182,16 @@ export function useClients() {
   }
 
   const hasMore = useMemo(() => {
-    if (isSearching || (allClients && allClients.length > 0)) {
+    if (isSearching || usingLocalBrowseSource) {
       return visibleCount < sourceClients.length;
     }
     return browseHasMore;
-  }, [isSearching, allClients, visibleCount, sourceClients.length, browseHasMore]);
+  }, [isSearching, usingLocalBrowseSource, visibleCount, sourceClients.length, browseHasMore]);
 
   // Solo muestra error si no hay datos locales en disco que mostrar
-  const error = (sourceClients.length === 0 && !bootLoading) ? bootClientsError : null;
+  // (basado en el universo SIN el filtro de estado: que el filtro de estado
+  // no deje a nadie visible no es un error de carga).
+  const error = (rawSourceClients.length === 0 && !bootLoading) ? bootClientsError : null;
 
   return {
     clients: visibleClients,
@@ -165,14 +199,14 @@ export function useClients() {
     searchLoading,
     loadingMore,
     error,
-    hasClients: sourceClients.length > 0,
+    hasClients: rawSourceClients.length > 0,
     hasMore,
     hasActiveFilters: isSearching,
     search,
     setSearch,
     loadMore,
     refresh: reload,
-    refreshing: bootLoading,
+    refreshing: bootLoading || isSyncing,
   };
 }
 

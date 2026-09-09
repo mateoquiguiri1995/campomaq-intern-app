@@ -4,24 +4,39 @@ import type { Product } from '../types';
 const PRODUCTS_CACHE_KEY = 'campomaq:cache:products:v1';
 const ALL_PRODUCTS_CACHE_KEY = 'campomaq:cache:all_products:v1';
 
+export interface CachedProductsPage {
+  products: Product[];
+  /** true si, al guardar, el backend indicaba que había más páginas por cargar. */
+  hasMore: boolean;
+}
+
 /**
- * Carga la primera página de productos guardada en el disco del dispositivo.
+ * Carga la primera página de productos guardada en el disco del dispositivo,
+ * junto con si esa página tenía más productos por cargar.
  */
-export async function getCachedProducts(): Promise<Product[] | null> {
+export async function getCachedProducts(): Promise<CachedProductsPage | null> {
   try {
     const raw = await AsyncStorage.getItem(PRODUCTS_CACHE_KEY);
-    return raw ? (JSON.parse(raw) as Product[]) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Compatibilidad con caché guardada por una versión anterior (solo el array).
+    if (Array.isArray(parsed)) {
+      return { products: parsed as Product[], hasMore: true };
+    }
+    return parsed as CachedProductsPage;
   } catch {
     return null;
   }
 }
 
 /**
- * Guarda la primera página de productos en el disco del dispositivo.
+ * Guarda la primera página de productos en el disco del dispositivo, junto
+ * con si el backend indicó que hay más páginas disponibles.
  */
-export async function saveCachedProducts(products: Product[]): Promise<void> {
+export async function saveCachedProducts(products: Product[], hasMore: boolean): Promise<void> {
   try {
-    await AsyncStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(products));
+    const payload: CachedProductsPage = { products, hasMore };
+    await AsyncStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(payload));
   } catch (error) {
     console.warn('[Cache] Error guardando página de productos:', error);
   }

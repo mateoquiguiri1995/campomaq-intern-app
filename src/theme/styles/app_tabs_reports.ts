@@ -4,12 +4,15 @@ import { spacing } from '@/theme/spacing';
 
 /** Estilos centralizados para app/(tabs)/reports.tsx. */
 export const styles = StyleSheet.create({
+  screenContent: {
+    paddingBottom: 0,
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     gap: spacing.md,
-    paddingBottom: 90,
+    paddingBottom: 80,
   },
   title: {
     fontSize: 22,

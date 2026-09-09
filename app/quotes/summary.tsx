@@ -8,7 +8,7 @@ import type { Product } from '@/features/catalog/types';
 import { QuoteItemEditorModal } from '@/features/quotes/components/QuoteItemEditorModal';
 import { QuoteTermsModal } from '@/features/quotes/components/QuoteTermsModal';
 import { useQuoteBuilder } from '@/features/quotes/QuoteBuilderProvider';
-import { getQuoteTotals, getLineTotal, getUnitPrice } from '@/features/quotes/services/quoteCalculations';
+import { getQuoteTotals, getLineDiscount, getLineTotal, getUnitPrice } from '@/features/quotes/services/quoteCalculations';
 import { getClientDisplayName, getClientDisplaySubtitle } from '@/features/quotes/services/quoteClient';
 import { shareQuotePdf } from '@/features/quotes/services/quotePdf';
 import { deleteQuote } from '@/features/quotes/services/quoteService';
@@ -17,18 +17,19 @@ import { colors } from '@/theme/colors';
 import { radius, spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import { formatCurrency } from '@/utils/currency';
-import type { QuoteItem } from '@/features/quotes/types';
+import type { Quote, QuoteItem } from '@/features/quotes/types';
 
 export default function QuoteSummaryScreen() {
   const router = useRouter();
   const { session } = useAuth();
   const { draftId } = useLocalSearchParams<{ draftId?: string }>();
-  const { client, items, status, observations, termsAndConditions, loadDraft, updateItem, removeItem, saveDraft, markGenerated, duplicateQuote, resetBuilder } = useQuoteBuilder();
+  const { id, client, items, status, observations, termsAndConditions, createdAt, loadDraft, updateItem, removeItem, saveDraft, markGenerated, duplicateQuote, resetBuilder } = useQuoteBuilder();
 
   const [hydrating, setHydrating] = useState(!!draftId);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [resharing, setResharing] = useState(false);
   const [termsModalVisible, setTermsModalVisible] = useState(false);
 
   useEffect(() => {
@@ -57,18 +58,54 @@ export default function QuoteSummaryScreen() {
   }
 
   async function handleConfirmTermsAndSend(values: { termsAndConditions: string; observations: string }) {
+    let draftSaved = false;
     try {
       setGenerating(true);
       setTermsModalVisible(false);
-      // A quotation changes to Enviada only after the share action succeeds.
       const quote = await saveDraft(values);
+      draftSaved = true;
+      // Nota: expo-sharing resuelve esta promesa en cuanto se abre el selector
+      // de apps, no cuando el usuario efectivamente comparte — no hay forma
+      // confiable de distinguir "compartido" de "panel cerrado sin elegir
+      // nada". Por eso el botón "Reenviar PDF" (más abajo, para cotizaciones
+      // ya no editables) sigue disponible después de esto.
       await shareQuotePdf(quote, session?.user ?? undefined);
       await markGenerated(values);
       router.replace('/reports');
     } catch (error) {
-      Alert.alert('No se pudo generar el PDF', error instanceof Error ? error.message : 'Intenta de nuevo.');
+      const reason = error instanceof Error ? error.message : 'Intenta de nuevo.';
+      if (draftSaved) {
+        Alert.alert(
+          'Borrador guardado',
+          `El borrador se guardó correctamente, pero no se pudo generar/compartir el PDF (${reason}). Puedes reintentar el envío.`
+        );
+      } else {
+        Alert.alert('No se pudo generar el PDF', reason);
+      }
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function handleResharePdf() {
+    if (!client) return;
+    try {
+      setResharing(true);
+      const quote: Quote = {
+        id,
+        client,
+        items,
+        status,
+        observations: observations.trim() || undefined,
+        termsAndConditions: termsAndConditions.trim() || undefined,
+        createdAt,
+        updatedAt: new Date().toISOString(),
+      };
+      await shareQuotePdf(quote, session?.user ?? undefined);
+    } catch (error) {
+      Alert.alert('No se pudo compartir el PDF', error instanceof Error ? error.message : 'Intenta de nuevo.');
+    } finally {
+      setResharing(false);
     }
   }
 
@@ -256,6 +293,12 @@ export default function QuoteSummaryScreen() {
                 <View style={styles.productCardBottom}>
                   <Text style={styles.productUnitSubtitle}>
                     {formatCurrency(getUnitPrice(item.product, item.priceTier))} c/u
+                    {item.discountAmount
+                      ? ` · Desc. ${formatCurrency(getLineDiscount(item))}`
+                      : item.discountPct
+                        ? ` · Desc. ${item.discountPct}%`
+                        : ''}
+                    {item.product.iva ? ' · IVA 15%' : ' · Sin IVA'}
                   </Text>
                   {isEditable && <View style={styles.counterRow}>
                     <TouchableOpacity
@@ -269,7 +312,7 @@ export default function QuoteSummaryScreen() {
                     <TouchableOpacity
                       style={styles.counterBtnPlus}
                       activeOpacity={0.7}
-                      onPress={() => updateItem(item.product.id, { quantity: item.quantity + 1 })}
+                      onPress={() => updateItem(item.product.id, { quantity: Math.min(9999, item.quantity + 1) })}
                     >
                       <Ionicons name="add" size={14} color={colors.primary} />
                     </TouchableOpacity>
@@ -292,10 +335,23 @@ export default function QuoteSummaryScreen() {
         {/* Totales */}
         {items.length > 0 && (
           <View style={styles.totalsCard}>
-            <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>Subtotal</Text>
-              <Text style={styles.totalsValue}>{formatCurrency(totals.subtotal)}</Text>
-            </View>
+            {totals.subtotal0 > 0 ? (
+              <>
+                <View style={styles.totalsRow}>
+                  <Text style={styles.totalsLabel}>Subtotal 15%</Text>
+                  <Text style={styles.totalsValue}>{formatCurrency(totals.subtotal15)}</Text>
+                </View>
+                <View style={styles.totalsRow}>
+                  <Text style={styles.totalsLabel}>Subtotal 0%</Text>
+                  <Text style={styles.totalsValue}>{formatCurrency(totals.subtotal0)}</Text>
+                </View>
+              </>
+            ) : (
+              <View style={styles.totalsRow}>
+                <Text style={styles.totalsLabel}>Subtotal</Text>
+                <Text style={styles.totalsValue}>{formatCurrency(totals.subtotal)}</Text>
+              </View>
+            )}
             <View style={styles.totalsRow}>
               <Text style={styles.totalsLabel}>IVA (15%)</Text>
               <Text style={styles.totalsValue}>{formatCurrency(totals.iva)}</Text>
@@ -329,6 +385,13 @@ export default function QuoteSummaryScreen() {
       </View>
       ) : (
         <View style={styles.bottomButtons}>
+          <TouchableOpacity
+            style={[styles.btnDraft, resharing && styles.btnDisabled]}
+            onPress={handleResharePdf}
+            disabled={resharing}
+          >
+            <Text style={styles.btnDraftText}>{resharing ? 'Compartiendo…' : 'Reenviar PDF'}</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.btnSend} onPress={handleDuplicate}>
             <Text style={styles.btnSendText}>Duplicar cotización</Text>
           </TouchableOpacity>

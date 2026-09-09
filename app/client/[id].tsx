@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ScreenContainer } from '@/components/common/ScreenContainer';
 import { ClientDetail } from '@/features/clients/components/ClientDetail';
@@ -57,7 +57,12 @@ export default function ClientDetailScreen() {
           headerTintColor: colors.black,
           headerShadowVisible: false,
           headerRight: () => (
-            <Pressable style={inlineLayoutStyles.clientHeaderAction}>
+            <Pressable
+              style={inlineLayoutStyles.clientHeaderAction}
+              onPress={() =>
+                Alert.alert('Próximamente', 'Las notificaciones estarán disponibles en una próxima actualización.')
+              }
+            >
               <Ionicons name="notifications" size={22} color={colors.black} />
             </Pressable>
           ),

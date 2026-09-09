@@ -12,6 +12,7 @@ import { useAppBootstrap } from '@/features/bootstrap/AppBootstrapProvider';
 import type { Product } from '@/features/catalog/types';
 import { useQuoteBuilder } from '@/features/quotes/QuoteBuilderProvider';
 import { listQuotes } from '@/features/quotes/services/quoteService';
+import { getQuoteTotals } from '@/features/quotes/services/quoteCalculations';
 import type { PriceTier, Quote, QuoteItem } from '@/features/quotes/types';
 import { useSellerDashboard } from '@/features/sellers/SellerProvider';
 import { formatCurrency } from '@/utils/currency';
@@ -23,30 +24,16 @@ function getHeaderDate(): string {
   return `${days[date.getDay()]} ${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
 }
 
-function getUnitPrice(product: Product, priceTier: PriceTier): number {
-  if (priceTier === 'A') return product.priceA;
-  if (priceTier === 'B') return product.priceB;
-  return product.priceC;
-}
-
-function getLineTotal(item: QuoteItem): number {
-  const price = getUnitPrice(item.product, item.priceTier);
-  const subtotal = price * item.quantity;
-  if (item.discountPct) {
-    return subtotal * (1 - item.discountPct / 100);
-  }
-  return subtotal;
-}
-
 function getQuoteTotal(quote: Quote): number {
-  const subtotal = quote.items.reduce((sum, item) => sum + getLineTotal(item), 0);
-  const iva = subtotal * 0.15;
-  return subtotal + iva;
+  return getQuoteTotals(quote.items).total;
 }
 
 function formatTimeAgo(dateStr: string): string {
   const now = new Date();
   const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
   const diffMs = now.getTime() - date.getTime();
   const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
   if (diffHrs < 1) {
@@ -130,8 +117,23 @@ export default function HomeScreen() {
 
   const [quotes, setQuotes] = useState<Quote[]>([]);
 
+  // Evita actualizar el estado si la pantalla ya se desmontó (p. ej. si el
+  // usuario navega fuera justo cuando listQuotes() resuelve).
+  const isMountedRef = useRef(true);
+  React.useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const loadDashboardData = useCallback(() => {
-    if (userId) listQuotes(userId).then(setQuotes).catch(() => {});
+    if (userId) {
+      listQuotes(userId)
+        .then((data) => {
+          if (isMountedRef.current) setQuotes(data);
+        })
+        .catch(() => {});
+    }
   }, [userId]);
 
   const handleRefresh = useCallback(() => {
@@ -223,7 +225,7 @@ export default function HomeScreen() {
   const displayActivities = sortedActivities.slice(0, 5);
 
   return (
-    <ScreenContainer scroll={false}>
+    <ScreenContainer scroll={false} edges={['top']} style={styles.screenContent}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}

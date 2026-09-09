@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { colors } from '@/theme/colors';
@@ -33,6 +34,15 @@ export function ClientList({
   refreshing = false,
   onRefresh,
 }: ClientListProps) {
+  const renderItem = useCallback(
+    ({ item }: { item: Client }) => (
+      <TouchableOpacity activeOpacity={0.7} onPress={() => onPressClient?.(item)}>
+        <ClientCard client={item} />
+      </TouchableOpacity>
+    ),
+    [onPressClient]
+  );
+
   return (
     <FlatList
       style={styles.list}
@@ -42,11 +52,7 @@ export function ClientList({
       refreshControl={
         onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primaryDark]} /> : undefined
       }
-      renderItem={({ item }) => (
-        <TouchableOpacity activeOpacity={0.7} onPress={() => onPressClient?.(item)}>
-          <ClientCard client={item} />
-        </TouchableOpacity>
-      )}
+      renderItem={renderItem}
       ItemSeparatorComponent={() => <View style={styles.separator} />}
       onEndReached={() => {
         if (hasMore) onLoadMore();

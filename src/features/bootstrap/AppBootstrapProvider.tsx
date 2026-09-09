@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import NetInfo from '@react-native-community/netinfo';
 
 import { useAuth } from '@/features/auth/AuthProvider';
@@ -41,9 +41,12 @@ interface AppBootstrapContextValue {
   allClients: Client[] | null;
   isLoadingAllClients: boolean;
   isLoading: boolean;
+  /** true mientras hay una sincronización en segundo plano en curso (reload()/reconexión). */
+  isSyncing: boolean;
   isOfflineMode: boolean;
   progress: number;
   reload: () => void;
+  syncInBackground: () => Promise<void>;
 }
 
 
@@ -61,15 +64,78 @@ export function AppBootstrapProvider({ children }: PropsWithChildren) {
   const [allClients, setAllClients] = useState<Client[] | null>(null);
   const [isLoadingAllClients, setIsLoadingAllClients] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [progress, setProgress] = useState(0);
   const [productsError, setProductsError] = useState<string | null>(null);
   const [clientsError, setClientsError] = useState<string | null>(null);
   const [reloadIndex, setReloadIndex] = useState(0);
 
+  const isSyncingRef = useRef(false);
+
+  const syncInBackground = useCallback(async () => {
+    if (!hasSession || isSyncingRef.current) return;
+    isSyncingRef.current = true;
+    setIsSyncing(true);
+
+    try {
+      const [productsRes, clientsRes, allProdRes, allCliRes] = await Promise.allSettled([
+        getProducts({ page: 1 }),
+        getClients({ page: 1, pageSize: CLIENTS_PRELOAD_PAGE_SIZE }),
+        getAllProducts(),
+        getAllClients(),
+      ]);
+
+      if (productsRes.status === 'fulfilled') {
+        const loadedProducts = productsRes.value;
+        setProducts(loadedProducts.products);
+        setProductsHasMore(loadedProducts.hasMore);
+        saveCachedProducts(loadedProducts.products, loadedProducts.hasMore);
+        setProductsError(null);
+      }
+
+      if (clientsRes.status === 'fulfilled') {
+        const loadedClients = clientsRes.value;
+        setClients(loadedClients.clients);
+        const total = loadedClients.total ?? loadedClients.clients.length;
+        setClientsTotal(total);
+        saveCachedClients(loadedClients.clients, total);
+        setClientsError(null);
+      }
+
+      if (allProdRes.status === 'fulfilled') {
+        const all = allProdRes.value;
+        setAllProducts(all);
+        saveCachedAllProducts(all);
+        prefetchProductImages(all);
+      }
+
+      if (allCliRes.status === 'fulfilled') {
+        const all = allCliRes.value;
+        setAllClients(all);
+        saveCachedAllClients(all);
+      }
+
+      if (productsRes.status === 'fulfilled' || clientsRes.status === 'fulfilled') {
+        setIsOfflineMode(false);
+      }
+    } catch (err) {
+      console.warn('[Bootstrap] Error en sincronización silenciosa de segundo plano:', err);
+    } finally {
+      isSyncingRef.current = false;
+      setIsSyncing(false);
+    }
+  }, [hasSession]);
+
   const reload = useCallback(() => {
-    setReloadIndex((current) => current + 1);
-  }, []);
+    // Si ya tenemos datos cargados en memoria, la sincronización se realiza en segundo plano
+    // sin bloquear la app con isLoading: true ni alterar progress ni desmontar rutas.
+    if (products.length > 0 || clients.length > 0 || allProducts !== null || allClients !== null) {
+      syncInBackground();
+    } else {
+      setReloadIndex((current) => current + 1);
+    }
+  }, [products.length, clients.length, allProducts, allClients, syncInBackground]);
 
   // Arranque híbrido (Stale-While-Revalidate):
   // 1. Intenta cargar de inmediato desde el disco local para permitir operación offline sin esperas.
@@ -113,8 +179,8 @@ export function AppBootstrapProvider({ children }: PropsWithChildren) {
       if (cachedProducts || cachedAllProducts || cachedClients || cachedAllClients) {
         hasLocalCache = true;
         if (cachedProducts) {
-          setProducts(cachedProducts);
-          setProductsHasMore(true);
+          setProducts(cachedProducts.products);
+          setProductsHasMore(cachedProducts.hasMore);
         }
         if (cachedAllProducts) {
           setAllProducts(cachedAllProducts);
@@ -150,7 +216,7 @@ export function AppBootstrapProvider({ children }: PropsWithChildren) {
         setProgress(100);
         setIsLoading(false);
       } else if (productsDone || clientsDone) {
-        setProgress(60);
+        setProgress((prev) => Math.max(prev, 60));
       }
     };
 
@@ -159,7 +225,7 @@ export function AppBootstrapProvider({ children }: PropsWithChildren) {
         if (!isMounted) return;
         setProducts(loadedProducts.products);
         setProductsHasMore(loadedProducts.hasMore);
-        saveCachedProducts(loadedProducts.products);
+        saveCachedProducts(loadedProducts.products, loadedProducts.hasMore);
         setProductsError(null);
         productsDone = true;
         checkComplete();
@@ -208,58 +274,74 @@ export function AppBootstrapProvider({ children }: PropsWithChildren) {
 
   // Carga del catálogo completo de productos en segundo plano + actualización del disco local
   useEffect(() => {
-    if (!hasSession || isLoading || productsError) return;
+    // No depende de `productsError`: ese error es del endpoint paginado
+    // (getProducts), distinto del que usa esta carga (getAllProducts) — un
+    // fallo transitorio de la página 1 no debe bloquear el catálogo completo.
+    if (!hasSession || isLoading) return;
 
     let isMounted = true;
-    setIsLoadingAllProducts(true);
+    // Difiere ligeramente la descarga pesada para no saturar los sockets de red durante el arranque inicial
+    const timer = setTimeout(() => {
+      if (!isMounted) return;
+      setIsLoadingAllProducts(true);
 
-    getAllProducts()
-      .then((all) => {
-        if (!isMounted) return;
-        setAllProducts(all);
-        saveCachedAllProducts(all);
-        prefetchProductImages(all);
-      })
-      .catch(() => {
-        // Silencioso: si falla la red, conservamos el allProducts obtenido del disco local
-      })
-      .finally(() => {
-        if (isMounted) setIsLoadingAllProducts(false);
-      });
+      getAllProducts()
+        .then((all) => {
+          if (!isMounted) return;
+          setAllProducts(all);
+          saveCachedAllProducts(all);
+          prefetchProductImages(all);
+        })
+        .catch(() => {
+          // Silencioso: si falla la red, conservamos el allProducts obtenido del disco local
+        })
+        .finally(() => {
+          if (isMounted) setIsLoadingAllProducts(false);
+        });
+    }, 1200);
 
     return () => {
       isMounted = false;
+      clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasSession, isLoading, productsError, reloadIndex]);
+  }, [hasSession, isLoading, reloadIndex]);
 
   // Carga de la cartera completa de clientes en segundo plano + actualización del disco local
   useEffect(() => {
-    if (!hasSession || isLoading || clientsError) return;
+    // No depende de `clientsError`: ese error es del endpoint paginado
+    // (getClients), distinto del que usa esta carga (getAllClients) — un
+    // fallo transitorio de la página 1 no debe bloquear la cartera completa.
+    if (!hasSession || isLoading) return;
 
     let isMounted = true;
-    setIsLoadingAllClients(true);
+    // Difiere ligeramente la descarga pesada para no saturar los sockets de red durante el arranque inicial
+    const timer = setTimeout(() => {
+      if (!isMounted) return;
+      setIsLoadingAllClients(true);
 
-    getAllClients()
-      .then((all) => {
-        if (!isMounted) return;
-        setAllClients(all);
-        saveCachedAllClients(all);
-      })
-      .catch(() => {
-        // Silencioso: si falla la red, conservamos el allClients obtenido del disco local
-      })
-      .finally(() => {
-        if (isMounted) setIsLoadingAllClients(false);
-      });
+      getAllClients()
+        .then((all) => {
+          if (!isMounted) return;
+          setAllClients(all);
+          saveCachedAllClients(all);
+        })
+        .catch(() => {
+          // Silencioso: si falla la red, conservamos el allClients obtenido del disco local
+        })
+        .finally(() => {
+          if (isMounted) setIsLoadingAllClients(false);
+        });
+    }, 1200);
 
     return () => {
       isMounted = false;
+      clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasSession, isLoading, clientsError, reloadIndex]);
+  }, [hasSession, isLoading, reloadIndex]);
 
-  // Reconexión reactiva al volver a primer plano
+  // Reconexión reactiva al recuperar la conexión a internet
   useEffect(() => {
     if (!hasSession) return;
 
@@ -272,26 +354,34 @@ export function AppBootstrapProvider({ children }: PropsWithChildren) {
       } else if (wasOffline) {
         wasOffline = false;
         setIsOfflineMode(false);
-        reload();
+        syncInBackground();
       }
     });
 
     return unsubscribe;
-  }, [hasSession, reload]);
+  }, [hasSession, syncInBackground]);
 
   useEffect(() => {
     if (!hasSession) return;
 
     const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
-      if (nextState === 'active' && isOfflineMode) {
-        reload();
+      if (nextState === 'active') {
+        NetInfo.fetch().then((state) => {
+          const isOnline = state.isConnected === true && state.isInternetReachable !== false;
+          if (isOnline) {
+            setIsOfflineMode(false);
+            syncInBackground();
+          } else {
+            setIsOfflineMode(true);
+          }
+        });
       }
     });
 
     return () => {
       subscription.remove();
     };
-  }, [hasSession, isOfflineMode, reload]);
+  }, [hasSession, syncInBackground]);
 
   const value = useMemo<AppBootstrapContextValue>(
     () => ({
@@ -306,9 +396,11 @@ export function AppBootstrapProvider({ children }: PropsWithChildren) {
       allClients,
       isLoadingAllClients,
       isLoading,
+      isSyncing,
       isOfflineMode,
       progress,
       reload,
+      syncInBackground,
     }),
     [
       products,
@@ -322,9 +414,11 @@ export function AppBootstrapProvider({ children }: PropsWithChildren) {
       allClients,
       isLoadingAllClients,
       isLoading,
+      isSyncing,
       isOfflineMode,
       progress,
       reload,
+      syncInBackground,
     ]
   );
 

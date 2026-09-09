@@ -90,7 +90,7 @@ export const styles = StyleSheet.create({
     marginBottom: 10,
   },
   progressTrack: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(40,36,32,0.10)',
     borderRadius: 99,
   },

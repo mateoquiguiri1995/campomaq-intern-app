@@ -75,37 +75,49 @@ export function QuoteTermsModal({
   const [selectedObs, setSelectedObs] = useState<Record<string, boolean>>({});
   const [customObs, setCustomObs] = useState('');
 
+  /**
+   * Empareja cada preset contra una LÍNEA completa de `text` (separador real
+   * usado al construir el string: '\n'), en vez de un `.includes()`/`.replace()`
+   * sin anclar. Así, si el texto personalizado del vendedor contiene el texto
+   * de un preset como parte de una oración más larga (no como su propia
+   * línea completa), no se lo confunde con el preset marcado.
+   */
+  function splitPresetLines<T extends { id: string; text: string }>(
+    text: string,
+    presets: T[]
+  ): { map: Record<string, boolean>; remaining: string } {
+    const map: Record<string, boolean> = {};
+    if (!text) {
+      presets.forEach((preset) => { map[preset.id] = false; });
+      return { map, remaining: '' };
+    }
+
+    const lines = text.split('\n');
+    const matchedLineIndexes = new Set<number>();
+
+    presets.forEach((preset) => {
+      const lineIndex = lines.findIndex((line, i) => !matchedLineIndexes.has(i) && line === preset.text);
+      if (lineIndex !== -1) {
+        map[preset.id] = true;
+        matchedLineIndexes.add(lineIndex);
+      } else {
+        map[preset.id] = false;
+      }
+    });
+
+    const remaining = lines.filter((_, i) => !matchedLineIndexes.has(i)).join('\n').trim();
+    return { map, remaining };
+  }
+
   useEffect(() => {
     if (visible) {
-      // Parse initialTerms to match preset terms if available
-      const termsMap: Record<string, boolean> = {};
-      let remainingTerms = initialTerms;
+      const termsResult = splitPresetLines(initialTerms, PRESET_TERMS);
+      setSelectedTerms(termsResult.map);
+      setCustomTerms(termsResult.remaining);
 
-      PRESET_TERMS.forEach((preset) => {
-        if (initialTerms && initialTerms.includes(preset.text)) {
-          termsMap[preset.id] = true;
-          remainingTerms = remainingTerms.replace(preset.text, '').trim();
-        } else {
-          termsMap[preset.id] = false;
-        }
-      });
-      setSelectedTerms(termsMap);
-      setCustomTerms(remainingTerms);
-
-      // Parse initialObservations to match preset observations if available
-      const obsMap: Record<string, boolean> = {};
-      let remainingObs = initialObservations;
-
-      PRESET_OBSERVATIONS.forEach((preset) => {
-        if (initialObservations && initialObservations.includes(preset.text)) {
-          obsMap[preset.id] = true;
-          remainingObs = remainingObs.replace(preset.text, '').trim();
-        } else {
-          obsMap[preset.id] = false;
-        }
-      });
-      setSelectedObs(obsMap);
-      setCustomObs(remainingObs);
+      const obsResult = splitPresetLines(initialObservations, PRESET_OBSERVATIONS);
+      setSelectedObs(obsResult.map);
+      setCustomObs(obsResult.remaining);
     }
   }, [visible, initialTerms, initialObservations]);
 

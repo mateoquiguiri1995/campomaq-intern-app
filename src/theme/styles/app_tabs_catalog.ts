@@ -1,10 +1,13 @@
-import { StyleSheet } from 'react-native';
 import { colors } from '@/theme/colors';
 import { radius, spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
+import { StyleSheet } from 'react-native';
 
 /** Estilos centralizados para $file. Uso: se importan desde esta pantalla/componente; editar aquí preserva el diseño. */
 export const styles = StyleSheet.create({
+  screenContent: {
+    paddingBottom: 0,
+  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -137,20 +140,6 @@ export const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#8E8E93',
   },
-  sortRightBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#F5F5F5',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  sortRightText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#1A1A1A',
-  },
   center: {
     flex: 1,
     justifyContent: 'center',
@@ -202,75 +191,6 @@ export const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.border,
     marginHorizontal: spacing.sm,
-  },
-  sortBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  sortSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    paddingBottom: 30,
-  },
-  sortSheetHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#E5E5E5',
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  sortSheetTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#000000',
-    marginBottom: 4,
-  },
-  sortSheetSubtitle: {
-    fontSize: 13,
-    color: '#666666',
-    marginBottom: 16,
-  },
-  sortOptionsList: {
-    gap: 2,
-  },
-  sortOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  sortOptionActive: {
-    backgroundColor: '#F5F5F5',
-  },
-  sortOptionText: {
-    fontSize: 14,
-    color: '#333333',
-    fontWeight: '500',
-  },
-  sortOptionTextActive: {
-    color: '#000000',
-    fontWeight: '700',
-  },
-  sortCancelBtn: {
-    marginTop: 16,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#EAEAEA',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  sortCancelBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#000000',
   },
   fab: {
     position: 'absolute',

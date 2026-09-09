@@ -10,6 +10,8 @@ export interface QuoteItem {
   priceTier: PriceTier;
   /** Descuento opcional en porcentaje (0-100). */
   discountPct?: number;
+  /** Descuento opcional en dólares aplicado al total de esta línea. */
+  discountAmount?: number;
 }
 
 /**

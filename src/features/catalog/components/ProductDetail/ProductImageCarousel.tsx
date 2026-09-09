@@ -1,10 +1,10 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import {
-  Dimensions,
   FlatList,
   StyleSheet,
   View,
+  useWindowDimensions,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
 } from 'react-native';
@@ -16,17 +16,17 @@ interface ProductImageCarouselProps {
   images: string[];
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SLIDE_WIDTH = SCREEN_WIDTH - spacing.md * 2;
 const IMAGE_HEIGHT = 260;
 
 /** Carrusel de imágenes del producto, con puntos de paginación. */
 export function ProductImageCarousel({ images }: ProductImageCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const { width: screenWidth } = useWindowDimensions();
+  const slideWidth = screenWidth - spacing.md * 2;
 
   function handleScrollEnd(event: NativeSyntheticEvent<NativeScrollEvent>) {
     const index = Math.round(
-      event.nativeEvent.contentOffset.x / SLIDE_WIDTH
+      event.nativeEvent.contentOffset.x / slideWidth
     );
     setActiveIndex(index);
   }
@@ -41,7 +41,7 @@ export function ProductImageCarousel({ images }: ProductImageCarouselProps) {
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={handleScrollEnd}
         renderItem={({ item }) => (
-          <View style={[styles.slide, { width: SLIDE_WIDTH }]}>
+          <View style={[styles.slide, { width: slideWidth }]}>
             <Image
               source={{ uri: item }}
               style={styles.image}

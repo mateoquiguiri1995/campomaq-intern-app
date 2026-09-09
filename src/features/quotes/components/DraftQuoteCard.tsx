@@ -40,7 +40,14 @@ export function DraftQuoteCard({ quote, onPress, onDelete }: DraftQuoteCardProps
 
       <View style={styles.rightColumn}>
         <Text style={styles.total}>{formatCurrency(total)}</Text>
-        <Pressable onPress={onDelete} hitSlop={8} style={styles.deleteButton}>
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          hitSlop={8}
+          style={styles.deleteButton}
+        >
           <Ionicons name="trash-outline" size={18} color={colors.danger} />
         </Pressable>
       </View>

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { styles } from '@/theme/styles/app_profile';
 import { Button } from '@/components/common/Button';
 import { ScreenContainer } from '@/components/common/ScreenContainer';
@@ -12,6 +12,10 @@ import { typography } from '@/theme/typography';
 export default function ProfileScreen() {
   const { session, logout } = useAuth();
   const user = session?.user;
+
+  function handleComingSoon() {
+    Alert.alert('Próximamente', 'Esta sección estará disponible en una próxima actualización.');
+  }
 
   return (
     <ScreenContainer>
@@ -44,19 +48,19 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.menuContainer}>
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} onPress={handleComingSoon}>
           <Ionicons name="person-outline" size={20} color={colors.black} />
           <Text style={styles.menuText}>Datos personales</Text>
           <Ionicons name="chevron-forward" size={20} color={colors.gray} style={styles.menuArrow} />
         </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.menuItem}>
+
+        <TouchableOpacity style={styles.menuItem} onPress={handleComingSoon}>
           <Ionicons name="settings-outline" size={20} color={colors.black} />
           <Text style={styles.menuText}>Configuración</Text>
           <Ionicons name="chevron-forward" size={20} color={colors.gray} style={styles.menuArrow} />
         </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.menuItem}>
+
+        <TouchableOpacity style={styles.menuItem} onPress={handleComingSoon}>
           <Ionicons name="help-circle-outline" size={20} color={colors.black} />
           <Text style={styles.menuText}>Ayuda</Text>
           <Ionicons name="chevron-forward" size={20} color={colors.gray} style={styles.menuArrow} />

@@ -106,12 +106,90 @@ export const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     paddingVertical: spacing.xs,
   },
-  discountInput: {
+  // Segmented control (%/$): un solo contenedor "pill" con fondo, en vez de
+  // dos botones sueltos con borde propio — así se lee como un único control
+  // de dos posiciones, no como dos chips desalineados.
+  discountModeToggle: {
+    flexDirection: 'row',
+    backgroundColor: colors.background,
+    borderRadius: radius.pill,
+    padding: 3,
+  },
+  discountModeSegment: {
+    minWidth: 40,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  discountModeSegmentSelected: {
+    backgroundColor: colors.primary,
+  },
+  discountModeSegmentText: {
+    ...typography.caption,
+    color: colors.grayDark,
+    fontWeight: '700',
+  },
+  discountModeSegmentTextSelected: {
+    color: colors.onPrimary,
+  },
+  // Campo de descuento con el símbolo ($/%) fijo dentro del mismo recuadro,
+  // para que el tipo de descuento sea visible aunque no se mire el toggle.
+  discountFieldRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.xs,
+  },
+  discountFieldSymbol: {
+    ...typography.subtitle,
+    color: colors.grayDark,
+    fontWeight: '700',
+    marginRight: spacing.xs,
+  },
+  discountFieldInput: {
+    ...typography.subtitle,
+    flex: 1,
+    color: colors.black,
+    paddingVertical: spacing.sm,
+  },
+  // Resumen del descuento aplicado: caja compacta con dos filas
+  // (descuento / total de línea), mismo lenguaje visual que los totales
+  // de app/quotes/summary.tsx.
+  discountSummary: {
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.sm,
+    gap: 2,
+  },
+  discountSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  discountSummaryLabel: {
+    ...typography.caption,
+    color: colors.grayDark,
+  },
+  discountSummaryValue: {
+    ...typography.caption,
+    color: colors.danger,
+    fontWeight: '700',
+  },
+  discountSummaryTotalLabel: {
+    ...typography.caption,
+    color: colors.black,
+    fontWeight: '600',
+  },
+  discountSummaryTotalValue: {
     ...typography.body,
     color: colors.black,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingVertical: spacing.sm,
+    fontWeight: '700',
   },
   actions: {
     flexDirection: 'row',

@@ -14,6 +14,7 @@ export function useCatalog() {
     allProducts,
     isLoadingAllProducts,
     isLoading: bootLoading,
+    isSyncing,
     productsError,
     reload,
   } = useAppBootstrap();
@@ -43,13 +44,16 @@ export function useCatalog() {
 
   /**
    * Mientras no haya filtros activos, la "página 1" del listado sigue la
-   * página que ya trajo el bootstrap (se actualiza sola con reload()).
+   * página que ya trajo el bootstrap. Cada vez que el bootstrap trae datos
+   * nuevos (arranque o reload()/pull-to-refresh) se reinicia la paginación
+   * real a la página 1 con los datos frescos, sin importar cuánto había
+   * scrolleado el usuario antes: así el pull-to-refresh siempre funciona,
+   * en vez de quedar inoperante después del primer `loadMore`.
    */
   useEffect(() => {
-    if (browsePage === 1) {
-      setBrowseProducts(bootProducts);
-      setBrowseHasMore(bootProductsHasMore);
-    }
+    setBrowseProducts(bootProducts);
+    setBrowseHasMore(bootProductsHasMore);
+    setBrowsePage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bootProducts, bootProductsHasMore]);
 
@@ -134,7 +138,11 @@ export function useCatalog() {
     ? combinedSearchResults
     : hasCategoryOrBrandFilter
       ? allProducts ?? []
-      : browseProducts;
+      // Sin filtros: en cuanto el catálogo completo (allProducts) esté
+      // disponible se prefiere sobre browseProducts (paginación real de
+      // backend) para poder ordenar y revelar más productos localmente sin
+      // reordenar tarjetas ya mostradas (ver `usingLocalBrowseSource`).
+      : allProducts ?? browseProducts;
 
   const filteredProducts = useMemo(() => {
     if (!hasActiveFilters) return sourceProducts;
@@ -150,15 +158,42 @@ export function useCatalog() {
   }, [sourceProducts, hasActiveFilters, selectedCategory, selectedBrand]);
 
   /**
-   * Con filtros activos, "cargar más" revela más de lo que ya está en
-   * memoria (slice progresivo con visibleCount). Sin filtros, la lista ya
-   * viene paginada real desde el backend (browseProducts crece con cada
-   * loadMoreBrowsePage()), así que se muestra completa sin recortar.
+   * true cuando el listado sin filtros ya puede navegarse sobre el catálogo
+   * completo en memoria (allProducts) en vez de sobre la paginación real de
+   * red (browseProducts). Antes de que allProducts termine de cargar, se
+   * sigue usando la paginación real como arranque rápido.
+   */
+  const usingLocalBrowseSource = !hasActiveFilters && allProducts !== null;
+
+  /**
+   * Los productos se muestran tal como llegan de la API, sin reordenarlos en
+   * el cliente. Con filtros activos, o sin filtros una vez cargado el
+   * catálogo completo, "cargar más" revela más de lo que ya está en memoria
+   * (slice progresivo con visibleCount) — nunca reubica tarjetas ya
+   * mostradas, porque nunca se reordena nada. Sin filtros y todavía sin el
+   * catálogo completo, la lista viene paginada real desde el backend
+   * (browseProducts crece con cada loadMoreBrowsePage()), así que se
+   * muestra completa.
    */
   const visibleProducts = useMemo(() => {
-    if (!hasActiveFilters) return filteredProducts;
-    return filteredProducts.slice(0, visibleCount);
-  }, [filteredProducts, visibleCount, hasActiveFilters]);
+    if (hasActiveFilters || usingLocalBrowseSource) {
+      return filteredProducts.slice(0, visibleCount);
+    }
+    return filteredProducts;
+  }, [filteredProducts, visibleCount, hasActiveFilters, usingLocalBrowseSource]);
+
+  /**
+   * Cuando allProducts termina de cargar en segundo plano y se pasa del modo
+   * de paginación real (browseProducts) al modo local (slice progresivo),
+   * aseguramos que visibleCount nunca sea menor a lo que el usuario ya había
+   * revelado por scroll: de lo contrario la lista "encogería" de golpe.
+   */
+  useEffect(() => {
+    if (!hasActiveFilters && allProducts) {
+      setVisibleCount((current) => Math.max(current, browseProducts.length, PAGE_SIZE));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allProducts, hasActiveFilters]);
 
   async function loadMoreBrowsePage() {
     if (loadingMore || !browseHasMore) return;
@@ -167,7 +202,14 @@ export function useCatalog() {
     try {
       const nextPage = browsePage + 1;
       const result = await getProducts({ page: nextPage });
-      setBrowseProducts((prev) => [...prev, ...result.products]);
+      setBrowseProducts((prev) => {
+      const existingCodes = new Set(prev.map((product) => product.code));
+
+      return [
+        ...prev,
+        ...result.products.filter((product) => !existingCodes.has(product.code)),
+      ];
+      });
       setBrowsePage(nextPage);
       setBrowseHasMore(result.hasMore);
     } catch {
@@ -184,7 +226,7 @@ export function useCatalog() {
   }
 
   function loadMore() {
-    if (hasActiveFilters) {
+    if (hasActiveFilters || usingLocalBrowseSource) {
       setVisibleCount((current) => current + PAGE_SIZE);
     } else {
       loadMoreBrowsePage();
@@ -217,14 +259,19 @@ export function useCatalog() {
     return ['Todos', ...new Set(source.map((p) => p.category))];
   }, [allProducts, browseProducts]);
 
-  const hasMore = hasActiveFilters
+  const hasMore = hasActiveFilters || usingLocalBrowseSource
     ? visibleCount < filteredProducts.length
     : browseHasMore;
 
   return {
     loading:
-      bootLoading ||
-      (hasCategoryOrBrandFilter && !isSearching && allProducts === null && isLoadingAllProducts),
+      (bootLoading && browseProducts.length === 0 && !allProducts?.length) ||
+      // No depende de `isLoadingAllProducts`: la carga del catálogo completo
+      // se difiere ~1.2s tras el arranque, y en ese margen `isLoadingAllProducts`
+      // todavía es `false` aunque `allProducts` siga sin llegar — sin este
+      // chequeo, filtrar por categoría/marca en ese margen mostraba un falso
+      // "sin resultados" en vez de un estado de carga.
+      (hasCategoryOrBrandFilter && !isSearching && allProducts === null),
 
     // Búsqueda en curso: se expone aparte del `loading` general para no
     // reemplazar toda la pantalla por un spinner en cada letra escrita.
@@ -266,6 +313,9 @@ export function useCatalog() {
 
     refresh: reload,
 
-    refreshing: bootLoading,
+    // bootLoading cubre el arranque en frío; isSyncing cubre el
+    // pull-to-refresh manual (antes no se reflejaba y el spinner
+    // desaparecía de inmediato aunque la sincronización siguiera en curso).
+    refreshing: bootLoading || isSyncing,
   };
 }

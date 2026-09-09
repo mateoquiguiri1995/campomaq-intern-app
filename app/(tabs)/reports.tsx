@@ -9,6 +9,7 @@ import { useAppBootstrap } from '@/features/bootstrap/AppBootstrapProvider';
 import type { Product } from '@/features/catalog/types';
 import { useQuoteBuilder } from '@/features/quotes/QuoteBuilderProvider';
 import { deleteQuote, listQuotes, updateQuoteStatus } from '@/features/quotes/services/quoteService';
+import { getQuoteTotals } from '@/features/quotes/services/quoteCalculations';
 import type { PriceTier, Quote, QuoteItem, QuoteStatus } from '@/features/quotes/types';
 import { useSellerDashboard } from '@/features/sellers/SellerProvider';
 import { colors } from '@/theme/colors';
@@ -85,25 +86,8 @@ function SwipeableQuoteCard({
   );
 }
 
-function getUnitPrice(product: Product, priceTier: PriceTier): number {
-  if (priceTier === 'A') return product.priceA;
-  if (priceTier === 'B') return product.priceB;
-  return product.priceC;
-}
-
-function getLineTotal(item: QuoteItem): number {
-  const price = getUnitPrice(item.product, item.priceTier);
-  const subtotal = price * item.quantity;
-  if (item.discountPct) {
-    return subtotal * (1 - item.discountPct / 100);
-  }
-  return subtotal;
-}
-
 function getQuoteTotal(quote: Quote): number {
-  const subtotal = quote.items.reduce((sum, item) => sum + getLineTotal(item), 0);
-  const iva = subtotal * 0.15; // 15% IVA
-  return subtotal + iva;
+  return getQuoteTotals(quote.items).total;
 }
 
 function formatQuoteDate(dateStr: string): string {
@@ -261,7 +245,7 @@ export default function ReportsScreen() {
   };
 
   return (
-    <ScreenContainer scroll={false}>
+    <ScreenContainer scroll={false} edges={['top']} style={styles.screenContent}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}

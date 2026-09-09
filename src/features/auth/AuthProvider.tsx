@@ -134,6 +134,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [isLoading, setIsLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
   const authVersion = useRef(0);
+  const hasActiveSessionRef = useRef(false);
+  const currentUserIdRef = useRef<string | null>(null);
 
   async function loadProfile(accessToken: string, userId: string, version: number) {
     try {
@@ -183,6 +185,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
         const version = ++authVersion.current;
 
         if (!newSession) {
+          hasActiveSessionRef.current = false;
+          currentUserIdRef.current = null;
           setHasSession(false);
           setSession(null);
           setProfileError(null);
@@ -191,6 +195,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
         }
 
         const userId = newSession.user.id;
+        const isBackgroundRefresh = hasActiveSessionRef.current && currentUserIdRef.current === userId;
+
+        if (isBackgroundRefresh) {
+          // Si el usuario ya está autenticado en la sesión actual (por ejemplo reconexión a internet
+          // o refresco de token TOKEN_REFRESHED), actualizamos el token y revalidamos el perfil
+          // en segundo plano de manera silenciosa, SIN activar isLoading global ni desmontar pantallas.
+          setSession((prev) => (prev ? { ...prev, token: newSession.access_token } : null));
+          await loadProfile(newSession.access_token, userId, version);
+          return;
+        }
+
+        hasActiveSessionRef.current = true;
+        currentUserIdRef.current = userId;
 
         // Recuperación instantánea de perfil y avatar desde disco local
         const [cachedProfileJson, rawAvatarOverride] = await Promise.all([

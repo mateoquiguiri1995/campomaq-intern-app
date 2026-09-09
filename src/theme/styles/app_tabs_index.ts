@@ -5,6 +5,9 @@ import { typography } from '@/theme/typography';
 
 /** Estilos centralizados para $file. Uso: se importan desde esta pantalla/componente; editar aquí preserva el diseño. */
 export const styles = StyleSheet.create({
+  screenContent: {
+    paddingBottom: 0,
+  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -318,7 +321,7 @@ export const styles = StyleSheet.create({
   },
   scrollContent: {
     gap: spacing.md,
-    paddingBottom: 90,
+    paddingBottom: 80,
   },
   avatarImage: {
     width: '100%',

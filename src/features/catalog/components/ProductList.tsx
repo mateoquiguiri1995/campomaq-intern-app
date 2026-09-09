@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -48,15 +49,20 @@ export function ProductList({
   refreshing = false,
   onRefresh,
 }: ProductListProps) {
+  const renderItem = useCallback(
+    ({ item }: { item: Product }) => (
+      <ProductCard product={item} onPressDetails={onPressProduct} />
+    ),
+    [onPressProduct]
+  );
+
   return (
     <FlatList
       style={styles.list}
       contentContainerStyle={styles.listContent}
       data={products}
       keyExtractor={(item) => item.code}
-      renderItem={({ item }) => (
-        <ProductCard product={item} onPressDetails={onPressProduct} />
-      )}
+      renderItem={renderItem}
       refreshControl={
         onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primaryDark]} /> : undefined
       }

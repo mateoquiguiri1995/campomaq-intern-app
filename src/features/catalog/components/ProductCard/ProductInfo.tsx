@@ -46,7 +46,7 @@ export function ProductInfo({
             {formatCurrency(product.priceA)}
           </Text>
           <Text style={styles.priceSub}>
-            PVP · IVA incl.
+            PVP · {product.iva ? 'IVA 15%' : 'IVA 0%'}
           </Text>
         </View>
 

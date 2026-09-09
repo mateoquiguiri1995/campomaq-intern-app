@@ -1,3 +1,4 @@
+import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme/spacing';
@@ -11,14 +12,18 @@ interface ProductCardProps {
   onPressDetails?: (product: Product) => void;
 }
 
-export function ProductCard({
+function ProductCardComponent({
   product,
   onPressDetails,
 }: ProductCardProps) {
+  const handlePress = useCallback(() => {
+    onPressDetails?.(product);
+  }, [onPressDetails, product]);
+
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-      onPress={() => onPressDetails?.(product)}
+      onPress={handlePress}
     >
       <View style={styles.content}>
         <ProductImage
@@ -33,5 +38,9 @@ export function ProductCard({
     </Pressable>
   );
 }
+
+// Evita re-renderizar cada tarjeta visible cuando el padre (CatalogScreen)
+// cambia de estado por algo ajeno a la lista (buscador, modales, etc.).
+export const ProductCard = memo(ProductCardComponent);
 
 import { styles } from '@/theme/styles/src_features_catalog_components_ProductCard_index';

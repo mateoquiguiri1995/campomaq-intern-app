@@ -69,13 +69,25 @@ export function SalesLoadingScreen({ progress: progressProp, onComplete }: Sales
 
   // Efecto para llamar a onComplete en caso de progreso real por prop
   useEffect(() => {
-    if (progressProp === 100 && onComplete) {
+    if (progressProp !== undefined && progressProp >= 98 && onComplete) {
       const t = setTimeout(() => {
         onComplete();
       }, 150);
       return () => clearTimeout(t);
     }
   }, [progressProp, onComplete]);
+
+  // Red de seguridad: si transcurren más de 3.5 segundos con sesión activa,
+  // se finaliza la pantalla de carga para garantizar que el vendedor nunca quede bloqueado.
+  useEffect(() => {
+    if (!onComplete) return;
+
+    const safetyTimer = setTimeout(() => {
+      onComplete();
+    }, 3500);
+
+    return () => clearTimeout(safetyTimer);
+  }, [onComplete]);
 
   // Simulación local de progreso en caso de que no venga la prop (pruebas o fallback)
   useEffect(() => {

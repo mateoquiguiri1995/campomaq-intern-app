@@ -64,5 +64,6 @@ export function mapApiProduct(api: ApiProduct, stockQty: number): Product {
     marginPct: api.margin,
 
     discount: api.discount,
+    iva: Boolean(api.iva),
   };
 }

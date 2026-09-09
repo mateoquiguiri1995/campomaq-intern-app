@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { Button } from '@/components/common/Button';
@@ -20,8 +20,32 @@ export default function ClientsScreen() {
   const { resetBuilder } = useQuoteBuilder();
   const { seller } = useSellerDashboard();
   const featuredClient = seller?.topClients[0];
+
+  // Predicado de filtro de estado (recencia/frecuencia), memoizado: se pasa
+  // al hook para que se aplique ANTES de la paginación, así `hasMore`/el
+  // conteo reflejan el mismo conjunto que se muestra en pantalla (antes, el
+  // filtro se aplicaba después de que useClients ya había paginado, y podía
+  // desincronizar el "cargar más" cuando había muchos clientes "Inactive").
+  const statusFilter = useCallback(
+    (client: Client) => {
+      if (client.recencyStatus === 'Inactive' || client.frequencyClassification === 'Inactive') {
+        return false;
+      }
+      if (clientFilter === 'Todos') return true;
+      if (clientFilter === 'Activo') return client.recencyStatus === 'Active';
+      const frequencyByFilter: Record<Exclude<ClientFilter, 'Todos' | 'Activo'>, string> = {
+        'Muy recurrente': 'Highly recurrent',
+        Recurrente: 'Recurrent',
+        Ocasional: 'Occasional',
+        'Una vez': 'One-time',
+      };
+      return client.frequencyClassification === frequencyByFilter[clientFilter];
+    },
+    [clientFilter]
+  );
+
   const {
-    clients,
+    clients: filteredClients,
     loading,
     searchLoading,
     loadingMore,
@@ -33,24 +57,7 @@ export default function ClientsScreen() {
     loadMore,
     refresh,
     refreshing,
-  } = useClients();
-
-
-
-  const filteredClients = useMemo(() => {
-    const availableClients = clients.filter(
-      (client) => client.recencyStatus !== 'Inactive' && client.frequencyClassification !== 'Inactive'
-    );
-    if (clientFilter === 'Todos') return availableClients;
-    if (clientFilter === 'Activo') return availableClients.filter((client) => client.recencyStatus === 'Active');
-    const frequencyByFilter: Record<Exclude<ClientFilter, 'Todos' | 'Activo'>, string> = {
-      'Muy recurrente': 'Highly recurrent',
-      Recurrente: 'Recurrent',
-      Ocasional: 'Occasional',
-      'Una vez': 'One-time',
-    };
-    return availableClients.filter((client) => client.frequencyClassification === frequencyByFilter[clientFilter]);
-  }, [clients, clientFilter]);
+  } = useClients(statusFilter);
 
   const hasActiveFilters = hasSearchFilter || clientFilter !== 'Todos';
 
@@ -68,7 +75,7 @@ export default function ClientsScreen() {
 
   if (loading) {
     return (
-      <ScreenContainer>
+      <ScreenContainer scroll={false} edges={['top']} style={styles.screenContent}>
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>Clientes</Text>
         </View>
@@ -94,7 +101,7 @@ export default function ClientsScreen() {
 
   if (error) {
     return (
-      <ScreenContainer>
+      <ScreenContainer scroll={false} edges={['top']} style={styles.screenContent}>
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>Clientes</Text>
         </View>
@@ -109,7 +116,7 @@ export default function ClientsScreen() {
   }
 
   return (
-    <ScreenContainer scroll={false}>
+    <ScreenContainer scroll={false} edges={['top']} style={styles.screenContent}>
       <View style={styles.topGroup}>
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>Clientes</Text>

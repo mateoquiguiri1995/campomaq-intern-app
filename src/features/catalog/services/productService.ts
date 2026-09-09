@@ -12,6 +12,24 @@ import {
 
 import { mapApiProduct } from './productMapper';
 
+/**
+ * `getProducts`/`getAllProducts`/`searchProducts` piden todas, por separado,
+ * el inventario completo (`GET /stock`). Como suelen dispararse juntas en la
+ * misma ronda de arranque/sincronización, comparten una única promesa en
+ * vuelo para no duplicar el request; una vez resuelta (éxito o error) se
+ * limpia, así la siguiente ronda sí vuelve a pedir datos frescos.
+ */
+let sharedStockPromise: Promise<ApiStock[]> | null = null;
+
+function getSharedStock(): Promise<ApiStock[]> {
+  if (!sharedStockPromise) {
+    sharedStockPromise = getStockFromApi().finally(() => {
+      sharedStockPromise = null;
+    });
+  }
+  return sharedStockPromise;
+}
+
 export interface GetProductsParams extends GetProductsFromApiParams {}
 
 export interface ProductsResult {
@@ -33,12 +51,21 @@ function mapAvailableProducts(items: ApiProduct[], stockItems: ApiStock[]): Prod
     stockItems.map(({ product_code, stock }) => [product_code, stock])
   );
 
+  const seenCodes = new Set<string>();
+
   return items.flatMap((item) => {
     const stockQty = stockByProductCode.get(item.product_code);
 
-    return typeof stockQty === 'number' && stockQty > 0
-      ? [mapApiProduct(item, stockQty)]
-      : [];
+    if (
+      seenCodes.has(item.product_code) ||
+      typeof stockQty !== 'number' ||
+      stockQty < 0
+    ) {
+      return [];
+    }
+
+    seenCodes.add(item.product_code);
+    return [mapApiProduct(item, stockQty)];
   });
 }
 
@@ -48,7 +75,7 @@ function mapAvailableProducts(items: ApiProduct[], stockItems: ApiStock[]): Prod
 export async function getProducts(params: GetProductsParams = {}): Promise<ProductsResult> {
   const [items, stockItems] = await Promise.all([
     getProductsFromApi(params),
-    getStockFromApi(),
+    getSharedStock(),
   ]);
 
   return {
@@ -64,7 +91,7 @@ export async function getProducts(params: GetProductsParams = {}): Promise<Produ
  * sola respuesta, así que no hace falta recorrer páginas.
  */
 export async function getAllProducts(): Promise<Product[]> {
-  const [items, stockItems] = await Promise.all([getProductsFromApi(), getStockFromApi()]);
+  const [items, stockItems] = await Promise.all([getProductsFromApi(), getSharedStock()]);
   return mapAvailableProducts(items, stockItems);
 }
 
@@ -78,7 +105,7 @@ export async function searchProducts(query: string): Promise<Product[]> {
 
   const [apiProducts, stockItems] = await Promise.all([
     searchProductsFromApi(query),
-    getStockFromApi(),
+    getSharedStock(),
   ]);
 
   return mapAvailableProducts(apiProducts, stockItems);

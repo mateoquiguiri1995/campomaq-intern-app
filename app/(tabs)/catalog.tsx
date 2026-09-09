@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Modal,
   Pressable,
@@ -27,8 +28,6 @@ import { useQuoteBuilder } from '@/features/quotes/QuoteBuilderProvider';
 import { useSellerDashboard } from '@/features/sellers/SellerProvider';
 import { colors } from '@/theme/colors';
 import { spacing } from '@/theme/spacing';
-
-type SortType = 'margin' | 'price_asc' | 'price_desc' | 'name';
 
 export default function CatalogScreen() {
   const router = useRouter();
@@ -54,10 +53,6 @@ export default function CatalogScreen() {
   const avatarRef = useRef<View>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState({ top: 0, right: 0 });
-
-  // Ordenamiento local
-  const [sortBy, setSortBy] = useState<SortType>('margin');
-  const [sortModalVisible, setSortModalVisible] = useState(false);
 
   const {
     products,
@@ -86,41 +81,6 @@ export default function CatalogScreen() {
     refresh,
     refreshing,
   } = useCatalog();
-
-  // Ordenar productos localmente
-  const sortedProducts = useMemo(() => {
-    const list = [...products];
-    if (sortBy === 'margin') {
-      return list.sort((a, b) => (b.marginPct ?? 0) - (a.marginPct ?? 0));
-    }
-    if (sortBy === 'price_asc') {
-      return list.sort((a, b) => a.priceA - b.priceA);
-    }
-    if (sortBy === 'price_desc') {
-      return list.sort((a, b) => b.priceA - a.priceA);
-    }
-    if (sortBy === 'name') {
-      return list.sort((a, b) => a.name.localeCompare(b.name));
-    }
-    return list;
-  }, [products, sortBy]);
-
-  const getSortLabel = () => {
-    if (sortBy === 'margin') return 'margen';
-    if (sortBy === 'price_asc') return 'precio (menor a mayor)';
-    if (sortBy === 'price_desc') return 'precio (mayor a menor)';
-    return 'nombre';
-  };
-
-  const getSortButtonText = () => {
-    if (sortBy === 'margin') return 'Margen';
-    if (sortBy === 'price_asc' || sortBy === 'price_desc') return 'Precio';
-    return 'Nombre';
-  };
-
-  function handleSortPress() {
-    setSortModalVisible(true);
-  }
 
   // Menu de avatar
   function openMenu() {
@@ -170,16 +130,23 @@ export default function CatalogScreen() {
     return user.name.split(' ')[0].toUpperCase();
   };
 
-  function handleOpenProduct(product: Product) {
-    router.push({
-      pathname: '/product/[id]',
-      params: { id: product.id, data: JSON.stringify(product) },
-    });
+  const handleOpenProduct = useCallback(
+    (product: Product) => {
+      router.push({
+        pathname: '/product/[id]',
+        params: { id: product.id, data: JSON.stringify(product) },
+      });
+    },
+    [router]
+  );
+
+  function handleBellPress() {
+    Alert.alert('Próximamente', 'Las notificaciones estarán disponibles en una próxima actualización.');
   }
 
   if (loading) {
     return (
-      <ScreenContainer scroll={false}>
+      <ScreenContainer scroll={false} edges={['top']} style={styles.screenContent}>
         {/* Cabecera Mock */}
         <View style={styles.headerRow}>
           <View style={styles.headerText}>
@@ -198,7 +165,7 @@ export default function CatalogScreen() {
 
   if (error) {
     return (
-      <ScreenContainer scroll={false}>
+      <ScreenContainer scroll={false} edges={['top']} style={styles.screenContent}>
         <View style={styles.headerRow}>
           <View style={styles.headerText}>
             <Text style={styles.helloText}>HOLA, {getUserFirstName()}</Text>
@@ -216,7 +183,7 @@ export default function CatalogScreen() {
 
   if (!hasProducts) {
     return (
-      <ScreenContainer scroll={false}>
+      <ScreenContainer scroll={false} edges={['top']} style={styles.screenContent}>
         <View style={styles.headerRow}>
           <View style={styles.headerText}>
             <Text style={styles.helloText}>HOLA, {getUserFirstName()}</Text>
@@ -232,7 +199,7 @@ export default function CatalogScreen() {
   }
 
   return (
-    <ScreenContainer scroll={false}>
+    <ScreenContainer scroll={false} edges={['top']} style={styles.screenContent}>
       {/* Cabecera Premium de mockup */}
       <View style={styles.headerRow}>
         <View style={styles.headerText}>
@@ -240,7 +207,7 @@ export default function CatalogScreen() {
           <Text style={styles.headerTitle}>Catálogo</Text>
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.bellButton} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.bellButton} activeOpacity={0.7} onPress={handleBellPress}>
             <Ionicons name="notifications" size={20} color={colors.black} />
             <View style={styles.bellDot} />
           </TouchableOpacity>
@@ -319,30 +286,18 @@ export default function CatalogScreen() {
         {/* Barra de progreso de Meta del Mes */}
         <MonthlyGoalCard goal={sellerGoal} />
 
-        {leadingCategory && (
-          <View style={styles.commercialReference}>
-            <Ionicons name="ribbon-outline" size={15} color={colors.primaryDark} />
-            <Text style={styles.commercialReferenceText} numberOfLines={1}>
-              Categoría líder: {leadingCategory.categoryName}
-            </Text>
-          </View>
-        )}
 
-        {/* Fila de Contador y Selector de Ordenamiento */}
+        {/* Fila de Contador */}
         <View style={styles.sortRow}>
           <Text style={styles.sortLeftText}>
-            {totalProducts} {totalProducts === 1 ? 'producto' : 'productos'} · ordenado por {getSortLabel()}
+            {totalProducts} {totalProducts === 1 ? 'producto' : 'productos'}
           </Text>
-          <TouchableOpacity style={styles.sortRightBtn} activeOpacity={0.7} onPress={handleSortPress}>
-            <Text style={styles.sortRightText}>{getSortButtonText()}</Text>
-            <Ionicons name="arrow-down" size={12} color="#1A1A1A" />
-          </TouchableOpacity>
         </View>
       </View>
 
       {/* Listado de Productos */}
       <ProductList
-        products={sortedProducts}
+        products={products}
         hasMore={hasMore}
         onLoadMore={loadMore}
         hasActiveFilters={hasActiveFilters}
@@ -375,87 +330,6 @@ export default function CatalogScreen() {
         </Pressable>
       </Modal>
 
-      {/* Modal de Ordenamiento (Bottom Sheet) */}
-      <Modal
-        visible={sortModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSortModalVisible(false)}
-      >
-        <Pressable style={styles.sortBackdrop} onPress={() => setSortModalVisible(false)}>
-          <View style={styles.sortSheet}>
-            <View style={styles.sortSheetHandle} />
-            <Text style={styles.sortSheetTitle}>Ordenar productos</Text>
-            <Text style={styles.sortSheetSubtitle}>Selecciona el criterio de ordenamiento:</Text>
-            
-            <View style={styles.sortOptionsList}>
-              <TouchableOpacity
-                style={[styles.sortOption, sortBy === 'margin' && styles.sortOptionActive]}
-                activeOpacity={0.7}
-                onPress={() => {
-                  setSortBy('margin');
-                  setSortModalVisible(false);
-                }}
-              >
-                <Text style={[styles.sortOptionText, sortBy === 'margin' && styles.sortOptionTextActive]}>
-                  Margen (Mayor a menor)
-                </Text>
-                {sortBy === 'margin' && <Ionicons name="checkmark" size={18} color="#1A1A1A" />}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.sortOption, sortBy === 'price_asc' && styles.sortOptionActive]}
-                activeOpacity={0.7}
-                onPress={() => {
-                  setSortBy('price_asc');
-                  setSortModalVisible(false);
-                }}
-              >
-                <Text style={[styles.sortOptionText, sortBy === 'price_asc' && styles.sortOptionTextActive]}>
-                  Precio (Menor a mayor)
-                </Text>
-                {sortBy === 'price_asc' && <Ionicons name="checkmark" size={18} color="#1A1A1A" />}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.sortOption, sortBy === 'price_desc' && styles.sortOptionActive]}
-                activeOpacity={0.7}
-                onPress={() => {
-                  setSortBy('price_desc');
-                  setSortModalVisible(false);
-                }}
-              >
-                <Text style={[styles.sortOptionText, sortBy === 'price_desc' && styles.sortOptionTextActive]}>
-                  Precio (Mayor a menor)
-                </Text>
-                {sortBy === 'price_desc' && <Ionicons name="checkmark" size={18} color="#1A1A1A" />}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.sortOption, sortBy === 'name' && styles.sortOptionActive]}
-                activeOpacity={0.7}
-                onPress={() => {
-                  setSortBy('name');
-                  setSortModalVisible(false);
-                }}
-              >
-                <Text style={[styles.sortOptionText, sortBy === 'name' && styles.sortOptionTextActive]}>
-                  Nombre (A-Z)
-                </Text>
-                {sortBy === 'name' && <Ionicons name="checkmark" size={18} color="#1A1A1A" />}
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={styles.sortCancelBtn}
-              activeOpacity={0.7}
-              onPress={() => setSortModalVisible(false)}
-            >
-              <Text style={styles.sortCancelBtnText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Modal>
       {/* Botón flotante FAB */}
       <TouchableOpacity
         style={styles.fab}

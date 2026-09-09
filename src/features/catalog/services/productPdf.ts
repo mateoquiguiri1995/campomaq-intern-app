@@ -1,6 +1,8 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
+import { writePdfForSharing } from '@/utils/pdfSharing';
+
 import type { Product } from '../types';
 
 function escapeHtml(value: string): string {
@@ -142,10 +144,20 @@ function buildTechnicalSheetHtml(product: Product): string {
 }
 
 export async function shareProductTechnicalSheetPdf(product: Product): Promise<void> {
-  const { uri } = await Print.printToFileAsync({ html: buildTechnicalSheetHtml(product) });
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error('Compartir no está disponible en este dispositivo.');
   }
+
+  // Igual que en quotePdf.ts: no se comparte directamente el uri de la caché
+  // temporal de expo-print (expo-sharing puede rechazarlo con "Not allowed
+  // to read file under given URL", según el dispositivo/versión de Expo Go).
+  // Se pide el contenido en base64 y se reescribe en documentDirectory antes
+  // de compartir, que es una ubicación que expo-sharing sí puede leer siempre.
+  const { base64 } = await Print.printToFileAsync({
+    html: buildTechnicalSheetHtml(product),
+    base64: true,
+  });
+  const uri = await writePdfForSharing(base64, 'ficha-tecnica');
 
   await Sharing.shareAsync(uri, {
     mimeType: 'application/pdf',
@@ -153,3 +165,5 @@ export async function shareProductTechnicalSheetPdf(product: Product): Promise<v
     UTI: 'com.adobe.pdf',
   });
 }
+
+

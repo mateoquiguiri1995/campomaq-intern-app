@@ -9,15 +9,17 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    paddingBottom: spacing.md,
+    paddingBottom: 4,
   },
   separator: {
-    height: spacing.md,
+    height: spacing.sm,
   },
   footer: {
     textAlign: 'center',
     color: colors.grayDark,
-    paddingVertical: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: 4,
+    fontSize: 12,
   },
   empty: {
     alignItems: 'center',

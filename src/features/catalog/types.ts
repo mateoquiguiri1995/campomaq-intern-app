@@ -49,6 +49,7 @@ export interface Product {
   updatedAt?: string;
 
   discount?: number;
+  iva?: boolean;
 }
 
 export interface MonthlyGoal {

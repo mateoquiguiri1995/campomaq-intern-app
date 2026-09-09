@@ -19,7 +19,11 @@ export const getItemAsync = async (key: string): Promise<string | null> => {
 export const setItemAsync = async (key: string, value: string): Promise<void> => {
   if (Platform.OS === 'web') {
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(key, value);
+      try {
+        window.localStorage.setItem(key, value);
+      } catch (error) {
+        console.warn('[SecureStore] Failed to set item (web):', error);
+      }
     }
     return;
   }
@@ -33,7 +37,11 @@ export const setItemAsync = async (key: string, value: string): Promise<void> =>
 export const deleteItemAsync = async (key: string): Promise<void> => {
   if (Platform.OS === 'web') {
     if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(key);
+      try {
+        window.localStorage.removeItem(key);
+      } catch (error) {
+        console.warn('[SecureStore] Failed to delete item (web):', error);
+      }
     }
     return;
   }
