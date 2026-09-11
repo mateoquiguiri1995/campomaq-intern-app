@@ -41,7 +41,9 @@
         {
           "photosPermission": "Campo Maq Ventas necesita acceso a tus fotos para que elijas una imagen de perfil."
         }
-      ]
+      ],
+      "expo-image",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,
