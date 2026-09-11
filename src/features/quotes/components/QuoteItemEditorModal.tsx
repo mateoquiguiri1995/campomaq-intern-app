@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { Button } from '@/components/common/Button';
 import type { Product } from '@/features/catalog/types';
@@ -8,7 +9,7 @@ import { radius, spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 import { formatCurrency } from '@/utils/currency';
 
-import { getUnitPrice, round2 } from '../services/quoteCalculations';
+import { getUnitPrice, getUtilityPct, round2 } from '../services/quoteCalculations';
 import type { PriceTier } from '../types';
 
 const TIERS: { key: PriceTier; label: string }[] = [
@@ -76,6 +77,15 @@ export function QuoteItemEditorModal({
     discountMode === 'pct'
       ? round2((lineSubtotal * Math.min(100, Math.max(0, numericDiscount))) / 100)
       : round2(Math.min(lineSubtotal, Math.max(0, numericDiscount)));
+
+  const lineTotal = round2(Math.max(0, lineSubtotal - discountAmountPreview));
+
+  // Utilidad real de la línea: precio neto por unidad (ya con el descuento
+  // aplicado) contra el último costo. Sin descuento equivale a la utilidad
+  // de lista del precio elegido.
+  const effectiveQuantity = Math.max(1, selectedQuantity || 1);
+  const netUnitPrice = round2(lineTotal / effectiveQuantity);
+  const utilityPct = getUtilityPct(netUnitPrice, product.lastCost);
 
   function adjustQuantity(delta: number) {
     const current = Math.max(1, parseInt(quantity, 10) || 1);
@@ -181,100 +191,157 @@ export function QuoteItemEditorModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
       <Pressable style={styles.overlay} onPress={onCancel}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-          <Text style={styles.productName}>{product.name}</Text>
-          <Text style={styles.productCode}>Código: {product.code} · {product.iva ? 'Aplica IVA (15%)' : 'Tarifa 0% IVA'}</Text>
+          <View style={styles.handle} />
 
-          <Text style={styles.sectionLabel}>Precio</Text>
-          <View style={styles.tierRow}>
-            {TIERS.map(({ key, label }) => (
-              <Pressable
-                key={key}
-                style={[styles.tierChip, tier === key && styles.tierChipSelected]}
-                onPress={() => setTier(key)}
-              >
-                <Text style={[styles.tierLabel, tier === key && styles.tierLabelSelected]}>{label}</Text>
-                <Text style={[styles.tierPrice, tier === key && styles.tierLabelSelected]}>
-                  {formatCurrency(getUnitPrice(product, key))}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <View style={styles.labelRow}>
-            <Text style={styles.sectionLabel}>Cantidad</Text>
-            <Text style={[
-              styles.stockLabel,
-              hasSufficientStock ? styles.stockOk : styles.stockOut
-            ]}>
-              {hasSufficientStock
-                ? `Stock disponible: ${product.stockQty}`
-                : `Stock insuficiente: ${product.stockQty} disponible`}
+          <View style={styles.header}>
+            <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
+            <Text style={styles.productMeta}>
+              Código: {product.code} · {product.iva ? 'IVA 15%' : 'IVA 0%'}
             </Text>
           </View>
-          <View style={styles.quantityRow}>
-            <Pressable style={styles.stepButton} onPress={() => adjustQuantity(-1)}>
-              <Text style={styles.stepButtonText}>−</Text>
-            </Pressable>
-            <TextInput
-              style={styles.quantityInput}
-              value={quantity}
-              onChangeText={handleQuantityChange}
-              keyboardType="number-pad"
-              maxLength={4}
-            />
-            <Pressable style={styles.stepButton} onPress={() => adjustQuantity(1)}>
-              <Text style={styles.stepButtonText}>+</Text>
-            </Pressable>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Precio</Text>
+            <View style={styles.tierRow}>
+              {TIERS.map(({ key, label }) => {
+                const tierUtilityPct = getUtilityPct(getUnitPrice(product, key), product.lastCost);
+                const isSelected = tier === key;
+                return (
+                  <Pressable
+                    key={key}
+                    style={[styles.tierChip, isSelected && styles.tierChipSelected]}
+                    onPress={() => setTier(key)}
+                  >
+                    <Text style={[styles.tierLabel, isSelected && styles.tierLabelSelected]}>{label}</Text>
+                    <Text style={[styles.tierPrice, isSelected && styles.tierLabelSelected]}>
+                      {formatCurrency(getUnitPrice(product, key))}
+                    </Text>
+                    {tierUtilityPct != null && (
+                      <View
+                        style={[
+                          styles.tierUtilityPill,
+                          isSelected
+                            ? styles.tierUtilityPillSelected
+                            : tierUtilityPct > 0 ? styles.utilityBadgePositive : styles.utilityBadgeNegative,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.tierUtilityText,
+                            isSelected
+                              ? styles.tierLabelSelected
+                              : tierUtilityPct > 0 ? styles.utilityPositive : styles.utilityNegative,
+                          ]}
+                        >
+                          {tierUtilityPct.toFixed(1)}%
+                        </Text>
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
 
-          <View style={styles.labelRow}>
-            <Text style={styles.sectionLabel}>Descuento (opcional)</Text>
-            <View style={styles.discountModeToggle}>
-              <Pressable
-                style={[styles.discountModeSegment, discountMode === 'pct' && styles.discountModeSegmentSelected]}
-                onPress={() => handleDiscountModeChange('pct')}
-                hitSlop={4}
-              >
-                <Text style={[styles.discountModeSegmentText, discountMode === 'pct' && styles.discountModeSegmentTextSelected]}>%</Text>
+          <View style={styles.section}>
+            <View style={styles.labelRow}>
+              <Text style={styles.sectionLabel}>Cantidad</Text>
+              <Text style={[
+                styles.stockLabel,
+                hasSufficientStock ? styles.stockOk : styles.stockOut
+              ]}>
+                {hasSufficientStock
+                  ? `Stock disponible: ${product.stockQty}`
+                  : `Stock insuficiente: ${product.stockQty} disponible`}
+              </Text>
+            </View>
+            <View style={styles.quantityRow}>
+              <Pressable style={styles.stepButton} onPress={() => adjustQuantity(-1)}>
+                <Text style={styles.stepButtonText}>−</Text>
               </Pressable>
-              <Pressable
-                style={[styles.discountModeSegment, discountMode === 'amount' && styles.discountModeSegmentSelected]}
-                onPress={() => handleDiscountModeChange('amount')}
-                hitSlop={4}
-              >
-                <Text style={[styles.discountModeSegmentText, discountMode === 'amount' && styles.discountModeSegmentTextSelected]}>$</Text>
+              <TextInput
+                style={styles.quantityInput}
+                value={quantity}
+                onChangeText={handleQuantityChange}
+                keyboardType="number-pad"
+                maxLength={4}
+              />
+              <Pressable style={styles.stepButton} onPress={() => adjustQuantity(1)}>
+                <Text style={styles.stepButtonText}>+</Text>
               </Pressable>
             </View>
           </View>
 
-          <View style={styles.discountFieldRow}>
-            {discountMode === 'amount' && <Text style={styles.discountFieldSymbol}>$</Text>}
-            <TextInput
-              style={styles.discountFieldInput}
-              value={discount}
-              onChangeText={discountMode === 'pct' ? handleDiscountPctChange : handleDiscountAmountChange}
-              keyboardType="decimal-pad"
-              placeholder={discountMode === 'pct' ? '0' : '0.00'}
-              placeholderTextColor={colors.gray}
-              maxLength={discountMode === 'pct' ? 5 : 9}
-            />
-            {discountMode === 'pct' && <Text style={styles.discountFieldSymbol}>%</Text>}
-          </View>
-
-          {discountAmountPreview > 0 && (
-            <View style={styles.discountSummary}>
-              <View style={styles.discountSummaryRow}>
-                <Text style={styles.discountSummaryLabel}>Descuento</Text>
-                <Text style={styles.discountSummaryValue}>−{formatCurrency(discountAmountPreview)}</Text>
-              </View>
-              <View style={styles.discountSummaryRow}>
-                <Text style={styles.discountSummaryTotalLabel}>Total línea</Text>
-                <Text style={styles.discountSummaryTotalValue}>
-                  {formatCurrency(Math.max(0, lineSubtotal - discountAmountPreview))}
-                </Text>
+          <View style={styles.section}>
+            <View style={styles.labelRow}>
+              <Text style={styles.sectionLabel}>Descuento (opcional)</Text>
+              <View style={styles.discountModeToggle}>
+                <Pressable
+                  style={[styles.discountModeSegment, discountMode === 'pct' && styles.discountModeSegmentSelected]}
+                  onPress={() => handleDiscountModeChange('pct')}
+                  hitSlop={4}
+                >
+                  <Text style={[styles.discountModeSegmentText, discountMode === 'pct' && styles.discountModeSegmentTextSelected]}>%</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.discountModeSegment, discountMode === 'amount' && styles.discountModeSegmentSelected]}
+                  onPress={() => handleDiscountModeChange('amount')}
+                  hitSlop={4}
+                >
+                  <Text style={[styles.discountModeSegmentText, discountMode === 'amount' && styles.discountModeSegmentTextSelected]}>$</Text>
+                </Pressable>
               </View>
             </View>
-          )}
+
+            <View style={styles.discountFieldRow}>
+              {discountMode === 'amount' && <Text style={styles.discountFieldSymbol}>$</Text>}
+              <TextInput
+                style={styles.discountFieldInput}
+                value={discount}
+                onChangeText={discountMode === 'pct' ? handleDiscountPctChange : handleDiscountAmountChange}
+                keyboardType="decimal-pad"
+                placeholder={discountMode === 'pct' ? '0' : '0.00'}
+                placeholderTextColor={colors.gray}
+                maxLength={discountMode === 'pct' ? 5 : 9}
+              />
+              {discountMode === 'pct' && <Text style={styles.discountFieldSymbol}>%</Text>}
+            </View>
+          </View>
+
+          <View style={styles.summaryCard}>
+            {discountAmountPreview > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Descuento</Text>
+                <Text style={styles.summaryDiscountValue}>−{formatCurrency(discountAmountPreview)}</Text>
+              </View>
+            )}
+
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabelStrong}>Total línea</Text>
+              <Text style={styles.summaryTotalValue}>{formatCurrency(lineTotal)}</Text>
+            </View>
+
+            {utilityPct != null && (
+              <View style={[styles.summaryRow, styles.summaryRowUtility]}>
+                <Text style={styles.summaryLabel}>Utilidad</Text>
+                <View
+                  style={[
+                    styles.utilityBadge,
+                    utilityPct > 0 ? styles.utilityBadgePositive : styles.utilityBadgeNegative,
+                  ]}
+                >
+                  <Ionicons
+                    name={utilityPct > 0 ? 'trending-up' : 'trending-down'}
+                    size={13}
+                    color={utilityPct > 0 ? colors.success : colors.danger}
+                  />
+                  <Text style={[styles.utilityBadgePct, utilityPct > 0 ? styles.utilityPositive : styles.utilityNegative]}>
+                    {utilityPct.toFixed(1)}%
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
 
           <View style={styles.actions}>
             <Button label="Cancelar" variant="ghost" onPress={onCancel} />

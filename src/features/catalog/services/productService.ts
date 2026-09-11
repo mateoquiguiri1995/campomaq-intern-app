@@ -2,11 +2,11 @@ import type { Product } from '../types';
 
 import {
   BACKEND_PRODUCTS_PAGE_SIZE,
+  getProductCommercialDataFromApi,
   getProductsFromApi,
-  getStockFromApi,
   searchProductsFromApi,
   type ApiProduct,
-  type ApiStock,
+  type ApiProductCommercialData,
   type GetProductsFromApiParams,
 } from '../api/productApi';
 
@@ -14,20 +14,21 @@ import { mapApiProduct } from './productMapper';
 
 /**
  * `getProducts`/`getAllProducts`/`searchProducts` piden todas, por separado,
- * el inventario completo (`GET /stock`). Como suelen dispararse juntas en la
- * misma ronda de arranque/sincronización, comparten una única promesa en
- * vuelo para no duplicar el request; una vez resuelta (éxito o error) se
- * limpia, así la siguiente ronda sí vuelve a pedir datos frescos.
+ * los datos comerciales completos (`GET /product-commercial-data`). Como
+ * suelen dispararse juntas en la misma ronda de arranque/sincronización,
+ * comparten una única promesa en vuelo para no duplicar el request; una vez
+ * resuelta (éxito o error) se limpia, así la siguiente ronda sí vuelve a
+ * pedir datos frescos.
  */
-let sharedStockPromise: Promise<ApiStock[]> | null = null;
+let sharedCommercialDataPromise: Promise<ApiProductCommercialData[]> | null = null;
 
-function getSharedStock(): Promise<ApiStock[]> {
-  if (!sharedStockPromise) {
-    sharedStockPromise = getStockFromApi().finally(() => {
-      sharedStockPromise = null;
+function getSharedCommercialData(): Promise<ApiProductCommercialData[]> {
+  if (!sharedCommercialDataPromise) {
+    sharedCommercialDataPromise = getProductCommercialDataFromApi().finally(() => {
+      sharedCommercialDataPromise = null;
     });
   }
-  return sharedStockPromise;
+  return sharedCommercialDataPromise;
 }
 
 export interface GetProductsParams extends GetProductsFromApiParams {}
@@ -43,29 +44,33 @@ export interface ProductsResult {
 }
 
 /**
- * Une productos y existencias mediante el código de producto. Un producto
- * sin registro de stock, con stock cero o negativo no está disponible.
+ * Une productos y datos comerciales mediante el código de producto. Un
+ * producto sin datos comerciales, o con stock negativo, no está disponible.
  */
-function mapAvailableProducts(items: ApiProduct[], stockItems: ApiStock[]): Product[] {
-  const stockByProductCode = new Map(
-    stockItems.map(({ product_code, stock }) => [product_code, stock])
+function mapAvailableProducts(
+  items: ApiProduct[],
+  commercialItems: ApiProductCommercialData[]
+): Product[] {
+  const commercialByProductCode = new Map(
+    commercialItems.map((commercial) => [commercial.product_code, commercial])
   );
 
   const seenCodes = new Set<string>();
 
   return items.flatMap((item) => {
-    const stockQty = stockByProductCode.get(item.product_code);
+    const commercial = commercialByProductCode.get(item.product_code);
 
     if (
       seenCodes.has(item.product_code) ||
-      typeof stockQty !== 'number' ||
-      stockQty < 0
+      !commercial ||
+      typeof commercial.stock !== 'number' ||
+      commercial.stock < 0
     ) {
       return [];
     }
 
     seenCodes.add(item.product_code);
-    return [mapApiProduct(item, stockQty)];
+    return [mapApiProduct(item, commercial)];
   });
 }
 
@@ -73,13 +78,13 @@ function mapAvailableProducts(items: ApiProduct[], stockItems: ApiStock[]): Prod
  * Obtiene productos paginados desde la API.
  */
 export async function getProducts(params: GetProductsParams = {}): Promise<ProductsResult> {
-  const [items, stockItems] = await Promise.all([
+  const [items, commercialItems] = await Promise.all([
     getProductsFromApi(params),
-    getSharedStock(),
+    getSharedCommercialData(),
   ]);
 
   return {
-    products: mapAvailableProducts(items, stockItems),
+    products: mapAvailableProducts(items, commercialItems),
     page: params.page ?? 1,
     hasMore: items.length >= BACKEND_PRODUCTS_PAGE_SIZE,
   };
@@ -91,8 +96,11 @@ export async function getProducts(params: GetProductsParams = {}): Promise<Produ
  * sola respuesta, así que no hace falta recorrer páginas.
  */
 export async function getAllProducts(): Promise<Product[]> {
-  const [items, stockItems] = await Promise.all([getProductsFromApi(), getSharedStock()]);
-  return mapAvailableProducts(items, stockItems);
+  const [items, commercialItems] = await Promise.all([
+    getProductsFromApi(),
+    getSharedCommercialData(),
+  ]);
+  return mapAvailableProducts(items, commercialItems);
 }
 
 /**
@@ -103,10 +111,10 @@ export async function searchProducts(query: string): Promise<Product[]> {
     return getAllProducts();
   }
 
-  const [apiProducts, stockItems] = await Promise.all([
+  const [apiProducts, commercialItems] = await Promise.all([
     searchProductsFromApi(query),
-    getSharedStock(),
+    getSharedCommercialData(),
   ]);
 
-  return mapAvailableProducts(apiProducts, stockItems);
+  return mapAvailableProducts(apiProducts, commercialItems);
 }

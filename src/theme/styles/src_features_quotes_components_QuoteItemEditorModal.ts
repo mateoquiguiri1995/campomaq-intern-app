@@ -1,42 +1,78 @@
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { colors } from '@/theme/colors';
 import { radius, spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 
-/** Estilos centralizados para $file. Uso: se importan desde esta pantalla/componente; editar aquí preserva el diseño. */
+/**
+ * Estilos centralizados para $file.
+ *
+ * Ritmo de espaciado: `sheet.gap` (md) separa cada sección de nivel
+ * superior (header, precio, cantidad, descuento, resumen, acciones); dentro
+ * de cada sección, `section.gap` (sm) separa su label de su control. Ningún
+ * elemento suelto debería llevar su propio marginTop/marginBottom — así el
+ * espacio entre bloques es siempre el mismo y no se acumula.
+ */
 export const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
   sheet: {
     backgroundColor: colors.surface,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    padding: spacing.lg,
-    gap: spacing.sm,
+    borderTopLeftRadius: radius.lg + 4,
+    borderTopRightRadius: radius.lg + 4,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+    paddingTop: spacing.sm,
+    gap: spacing.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.black,
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 16,
+      },
+      android: { elevation: 12 },
+    }),
+  },
+  // Indicador de arrastre: convención visual de bottom sheet, señala que la
+  // tarjeta es un panel deslizable y no un bloque de página normal.
+  handle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.border,
+    marginBottom: spacing.xs,
+  },
+  header: {
+    gap: 2,
   },
   productName: {
     ...typography.subtitle,
+    fontSize: 18,
     color: colors.black,
     fontWeight: '700',
   },
-  productCode: {
+  productMeta: {
     ...typography.caption,
     color: colors.gray,
-    marginBottom: spacing.sm,
+  },
+  section: {
+    gap: spacing.sm,
   },
   sectionLabel: {
     ...typography.caption,
     color: colors.grayDark,
     fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: spacing.sm,
   },
   stockLabel: {
     fontSize: 12,
@@ -54,15 +90,25 @@ export const styles = StyleSheet.create({
   },
   tierChip: {
     flex: 1,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     paddingVertical: spacing.sm,
     alignItems: 'center',
+    gap: 4,
   },
   tierChipSelected: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primaryDark,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
+      },
+      android: { elevation: 3 },
+    }),
   },
   tierLabel: {
     ...typography.caption,
@@ -76,18 +122,35 @@ export const styles = StyleSheet.create({
     ...typography.body,
     color: colors.black,
     fontWeight: '700',
-    marginTop: 2,
+  },
+  tierUtilityPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+    borderRadius: radius.pill,
+  },
+  tierUtilityPillSelected: {
+    backgroundColor: 'rgba(26, 26, 26, 0.12)',
+  },
+  tierUtilityText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+  utilityPositive: {
+    color: colors.success,
+  },
+  utilityNegative: {
+    color: colors.danger,
   },
   quantityRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   stepButton: {
     width: 40,
     height: 40,
-    borderRadius: radius.md,
-    borderWidth: 1,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
@@ -99,11 +162,11 @@ export const styles = StyleSheet.create({
   },
   quantityInput: {
     ...typography.subtitle,
+    fontSize: 18,
     color: colors.black,
-    width: 70,
+    fontWeight: '700',
+    width: 60,
     textAlign: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
     paddingVertical: spacing.xs,
   },
   // Segmented control (%/$): un solo contenedor "pill" con fondo, en vez de
@@ -139,11 +202,10 @@ export const styles = StyleSheet.create({
   discountFieldRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
-    marginTop: spacing.xs,
   },
   discountFieldSymbol: {
     ...typography.subtitle,
@@ -157,47 +219,73 @@ export const styles = StyleSheet.create({
     color: colors.black,
     paddingVertical: spacing.sm,
   },
-  // Resumen del descuento aplicado: caja compacta con dos filas
-  // (descuento / total de línea), mismo lenguaje visual que los totales
-  // de app/quotes/summary.tsx.
-  discountSummary: {
+  // Resumen de la línea: siempre visible (no solo cuando hay descuento), así
+  // el vendedor ve el total y la utilidad de una sola mirada, en una única
+  // tarjeta en vez de dos cajas sueltas apiladas.
+  summaryCard: {
     backgroundColor: colors.background,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    marginTop: spacing.sm,
-    gap: 2,
+    paddingVertical: spacing.md,
+    gap: spacing.xs,
   },
-  discountSummaryRow: {
+  summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  discountSummaryLabel: {
+  summaryRowUtility: {
+    marginTop: 2,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  summaryLabel: {
     ...typography.caption,
     color: colors.grayDark,
   },
-  discountSummaryValue: {
+  summaryLabelStrong: {
+    ...typography.body,
+    color: colors.black,
+    fontWeight: '600',
+  },
+  summaryDiscountValue: {
     ...typography.caption,
     color: colors.danger,
     fontWeight: '700',
   },
-  discountSummaryTotalLabel: {
-    ...typography.caption,
+  summaryTotalValue: {
+    ...typography.subtitle,
+    fontSize: 18,
     color: colors.black,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  discountSummaryTotalValue: {
-    ...typography.body,
-    color: colors.black,
+  // Utilidad en una píldora con fondo tenue del color de estado (verde/rojo)
+  // y un ícono de tendencia, para que se lea de inmediato sin competir con
+  // el total de la línea.
+  utilityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+  },
+  utilityBadgePositive: {
+    backgroundColor: 'rgba(46, 158, 79, 0.12)',
+  },
+  utilityBadgeNegative: {
+    backgroundColor: 'rgba(214, 69, 69, 0.12)',
+  },
+  utilityBadgePct: {
+    ...typography.caption,
     fontWeight: '700',
   },
   actions: {
     flexDirection: 'row',
     gap: spacing.sm,
-    marginTop: spacing.md,
   },
   confirmButton: {
     flex: 1,
   },
 });
-

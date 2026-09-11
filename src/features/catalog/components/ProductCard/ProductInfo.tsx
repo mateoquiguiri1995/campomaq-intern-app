@@ -1,7 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
 import { styles } from '@/theme/styles/src_features_catalog_components_ProductCard_ProductInfo';
-import { colors } from '@/theme/colors';
 import { formatCurrency } from '@/utils/currency';
+import { Text, View } from 'react-native';
 import type { Product } from '../../types';
 
 interface Props {
@@ -12,7 +11,7 @@ export function ProductInfo({
   product,
 }: Props) {
   const isLowStock = product.stockQty <= 12;
-  const stockText = isLowStock ? `Stock - ${product.stockQty}` : `Disponible - ${product.stockQty}`;
+  const stockText = isLowStock ? `Stock: ${product.stockQty}` : `Disponible: ${product.stockQty}`;
 
   const isNew = product.isNew;
   const discount = product.discount;

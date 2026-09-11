@@ -15,6 +15,16 @@ export function getUnitPrice(product: Product, tier: PriceTier): number {
   return product.priceC;
 }
 
+/**
+ * Utilidad = (precio de venta - último costo) / último costo, en porcentaje.
+ * `null` cuando no hay último costo (producto sin datos comerciales) para no
+ * mostrar una utilidad engañosa.
+ */
+export function getUtilityPct(unitPrice: number, lastCost: number | undefined): number | null {
+  if (!lastCost || lastCost <= 0) return null;
+  return ((unitPrice - lastCost) / lastCost) * 100;
+}
+
 export function getLineGross(item: QuoteItem): number {
   return round2(getUnitPrice(item.product, item.priceTier) * item.quantity);
 }

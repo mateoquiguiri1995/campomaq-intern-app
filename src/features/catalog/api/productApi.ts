@@ -25,10 +25,22 @@ export interface ApiProduct {
   iva?: boolean;
 }
 
-/** Existencia de un producto devuelta por el endpoint /stock. */
-export interface ApiStock {
+/**
+ * Datos comerciales de un producto devueltos por el endpoint
+ * /product-commercial-data: existencia, precios vigentes y costos.
+ * Reemplaza al antiguo /stock, que solo traía `stock`.
+ */
+export interface ApiProductCommercialData {
+  product_id: number;
   product_code: string;
   stock: number;
+  average_cost: number;
+  /** Último costo de compra: base para calcular la utilidad de cada precio. */
+  last_cost: number;
+  price_cash: number;
+  price_card: number;
+  price_credit: number;
+  iva: boolean;
 }
 
 /**
@@ -57,9 +69,12 @@ export async function getProductsFromApi(
   return apiGet<ApiProduct[]>(`/products${query ? `?${query}` : ''}`);
 }
 
-/** Obtiene las existencias vigentes identificadas por código de producto. */
-export async function getStockFromApi(): Promise<ApiStock[]> {
-  return apiGet<ApiStock[]>('/stock');
+/**
+ * Obtiene los datos comerciales vigentes (stock, precios y costos)
+ * identificados por código de producto.
+ */
+export async function getProductCommercialDataFromApi(): Promise<ApiProductCommercialData[]> {
+  return apiGet<ApiProductCommercialData[]>('/product-commercial-data');
 }
 
 /**

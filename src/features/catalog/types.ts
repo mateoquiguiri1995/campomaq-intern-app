@@ -25,6 +25,9 @@ export interface Product {
 
   marginPct?: number;
 
+  /** Último costo de compra (endpoint /product-commercial-data), base para calcular la utilidad. */
+  lastCost?: number;
+
   stockQty: number;
 
   imageUrl?: string;
