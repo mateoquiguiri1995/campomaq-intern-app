@@ -4,6 +4,9 @@ import { radius, spacing } from '@/theme/spacing';
 import { typography } from '@/theme/typography';
 
 export const styles = StyleSheet.create({
+  keyboardAvoider: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

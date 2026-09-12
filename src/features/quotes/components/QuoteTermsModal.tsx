@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { Button } from '@/components/common/Button';
 import { colors } from '@/theme/colors';
@@ -162,6 +162,10 @@ export function QuoteTermsModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoider}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
       <Pressable style={styles.overlay} onPress={onCancel}>
         <Pressable style={styles.sheetContainer} onPress={(e) => e.stopPropagation()}>
           {/* Header */}
@@ -177,6 +181,7 @@ export function QuoteTermsModal({
             style={styles.scrollArea}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             {/* Sección 1: Acuerdos y Condiciones */}
             <View style={styles.sectionCard}>
@@ -282,6 +287,7 @@ export function QuoteTermsModal({
           </View>
         </Pressable>
       </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

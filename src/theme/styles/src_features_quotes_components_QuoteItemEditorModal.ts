@@ -13,6 +13,9 @@ import { typography } from '@/theme/typography';
  * espacio entre bloques es siempre el mismo y no se acumula.
  */
 export const styles = StyleSheet.create({
+  keyboardAvoider: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',

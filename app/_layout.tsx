@@ -13,10 +13,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { LoadingScreen } from '@/components/common/LoadingScreen';
 import { SalesLoadingScreen } from '@/components/common/SalesLoadingScreen';
+import { UpdateNoticeScreen } from '@/components/common/UpdateNoticeScreen';
 import { AuthProvider, useAuth } from '@/features/auth/AuthProvider';
 import { AppBootstrapProvider, useAppBootstrap } from '@/features/bootstrap/AppBootstrapProvider';
 import { QuoteBuilderProvider } from '@/features/quotes/QuoteBuilderProvider';
 import { SellerProvider } from '@/features/sellers/SellerProvider';
+import { useUpdateNotice } from '@/features/updates/useUpdateNotice';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -77,6 +79,7 @@ function SessionQuoteBuilder() {
 function RootNavigator() {
   const { session, isLoading, hasSession, profileError, retryProfile } = useAuth();
   const { isLoading: isBootstrapping, progress: bootstrapProgress } = useAppBootstrap();
+  const { showUpdateNotice, dismissUpdateNotice } = useUpdateNotice();
   const [showSplash, setShowSplash] = useState(true);
   const [showSalesSplash, setShowSalesSplash] = useState(false);
   const [isInitialBootDone, setIsInitialBootDone] = useState(false);
@@ -156,18 +159,22 @@ function RootNavigator() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={!session}>
-        <Stack.Screen name="login" />
-      </Stack.Protected>
+    <>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Protected guard={!session}>
+          <Stack.Screen name="login" />
+        </Stack.Protected>
 
-      <Stack.Protected guard={!!session}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="product/[id]" />
-        <Stack.Screen name="client/[id]" />
-        <Stack.Screen name="client/invoice/[invoiceNumber]" />
-        <Stack.Screen name="quotes" />
-      </Stack.Protected>
-    </Stack>
+        <Stack.Protected guard={!!session}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="product/[id]" />
+          <Stack.Screen name="client/[id]" />
+          <Stack.Screen name="client/invoice/[invoiceNumber]" />
+          <Stack.Screen name="quotes" />
+        </Stack.Protected>
+      </Stack>
+
+      {showUpdateNotice && <UpdateNoticeScreen onComplete={dismissUpdateNotice} />}
+    </>
   );
 }
